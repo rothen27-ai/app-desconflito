@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DesConflito v12 — Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=DM+Sans:wght@400;500;600;700&display=swap">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #F4F6F3;
+  --card:    #FFFFFF;
+  --primary: #2D4A3E;
+  --accent:  #5C8A6A;
+  --text:    #1A2820;
+  --muted:   #6B7F72;
+  --border:  #D8E4DC;
+  --tag:     #E8EFE9;
+  --green:   #4A7C59;
+  --red:     #B45151;
+  --GF:      'Fraunces', serif;
+  --SF:      'DM Sans', sans-serif;
+}
+
+body {
+  background: #1C2B24;
+  font-family: var(--SF);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── PAGE HEADER ── */
+.page-hdr {
+  padding: 48px 24px 36px;
+  text-align: center;
+  color: #fff;
+}
+.page-hdr .label {
+  font-family: var(--GF);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  font-style: italic;
+  margin-bottom: 12px;
+}
+.page-hdr h1 {
+  font-family: var(--GF);
+  font-size: 32px;
+  font-weight: 300;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.page-hdr h1 em { font-style: italic; color: #8EC4A1; }
+.page-hdr p {
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.6;
+  max-width: 480px;
+  margin: 0 auto 32px;
+}
+.nav-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.nav-tab {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 50px;
+  padding: 9px 20px;
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--SF);
+  transition: all 0.2s;
+}
+.nav-tab:hover, .nav-tab.active {
+  background: rgba(92,138,106,0.35);
+  border-color: rgba(142,196,161,0.5);
+  color: #fff;
+}
+
+/* ── SCREEN SECTIONS ── */
+.section {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+  display: none;
+}
+.section.visible { display: block; }
+
+.section-label {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.section-label h2 {
+  font-family: var(--GF);
+  font-size: 20px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.8);
+  margin-bottom: 6px;
+}
+.section-label p {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.5;
+}
+
+/* ── PHONE FRAME ── */
+.phone {
+  background: var(--bg);
+  border-radius: 36px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 10px #111,
+    0 32px 80px rgba(0,0,0,0.6);
+  position: relative;
+}
+.phone::before {
+  content: '';
+  display: block;
+  width: 120px;
+  height: 6px;
+  background: #222;
+  border-radius: 3px;
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* ── SHARED UI COMPONENTS ── */
+.hdr {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 44px 18px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.hdr-back {
+  font-size: 22px;
+  color: var(--primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+.hdr-title {
+  font-family: var(--GF);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+  flex: 1;
+}
+.hdr-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+  font-family: var(--SF);
+}
+.hdr-right {
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.body { padding: 16px; }
+
+.card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 1px 10px rgba(0,0,0,0.06);
+  margin-bottom: 12px;
+}
+.card-sm {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+  margin-bottom: 8px;
+}
+.card-title {
+  font-family: var(--GF);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 5px;
+}
+.card-sub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.tag {
+  background: var(--tag);
+  color: var(--primary);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+  font-family: var(--SF);
+}
+.tag-green { background: #E6F2EA; color: #2A6040; }
+.tag-amber { background: #FEF3E2; color: #92520A; }
+.tag-red   { background: #FDEAEA; color: #8B2B2B; }
+
+.btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 14px;
+  padding: 11px 20px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--GF);
+  display: inline-block;
+}
+.btn-sm {
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  padding: 7px 14px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--SF);
+  display: inline-block;
+}
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 18px;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--SF);
+}
+.btn-ghost {
+  background: var(--tag);
+  border: none;
+  border-radius: 10px;
+  padding: 7px 14px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--SF);
+}
+
+.bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 8px 28px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+.nav-item {
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  font-family: var(--SF);
+}
+.nav-item.active { color: var(--primary); font-weight: 600; }
+.nav-icon { font-size: 20px; }
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ══════════════════════════════════════════════
+   TELA 1 — DASHBOARD DO CASAL
+══════════════════════════════════════════════ */
+
+.dash-greeting {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  padding: 44px 20px 20px;
+  color: #fff;
+}
+.dash-greeting .eyebrow {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  font-family: var(--SF);
+  margin-bottom: 4px;
+}
+.dash-greeting h2 {
+  font-family: var(--GF);
+  font-size: 24px;
+  font-weight: 300;
+  margin-bottom: 4px;
+}
+.dash-greeting h2 em { font-style: italic; }
+.dash-greeting .sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 20px;
+}
+.dash-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+.dash-stat {
+  background: rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 12px 10px;
+  text-align: center;
+}
+.dash-stat .n {
+  font-family: var(--GF);
+  font-size: 26px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1;
+}
+.dash-stat .l {
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 4px;
+  font-family: var(--SF);
+}
+
+.section-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.section-hdr h3 {
+  font-family: var(--GF);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.section-hdr a {
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--SF);
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.activity-dot.reminder { background: #D4A017; }
+.activity-dot.checkin  { background: #4A7C59; }
+.activity-dot.acordo   { background: #5A7A9A; }
+.activity-text { font-size: 12px; color: var(--text); line-height: 1.4; }
+.activity-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+.reminder-banner {
+  background: linear-gradient(135deg, #4A7C5920, #2D4A3E10);
+  border: 1px solid #4A7C5940;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.reminder-icon { font-size: 24px; }
+.reminder-text { flex: 1; }
+.reminder-text .t { font-size: 13px; font-weight: 600; color: var(--primary); font-family: var(--GF); }
+.reminder-text .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ══════════════════════════════════════════════
+   TELA 2 — CHAT
+══════════════════════════════════════════════ */
+
+.chat-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg);
+  min-height: 400px;
+}
+
+.bubble-wrap { display: flex; flex-direction: column; max-width: 82%; }
+.bubble-wrap.me { align-self: flex-end; align-items: flex-end; }
+.bubble-wrap.partner { align-self: flex-start; align-items: flex-start; }
+
+.bubble {
+  border-radius: 18px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  position: relative;
+}
+.bubble.me {
+  background: var(--primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.bubble.partner {
+  background: var(--card);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--border);
+}
+.bubble-meta {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-family: var(--SF);
+}
+.bubble-meta.me { text-align: right; }
+
+.cnv-badge {
+  background: #E6F2EA;
+  border: 1px solid #4A7C5940;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #2A6040;
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--SF);
+  letter-spacing: 0.05em;
+}
+
+.cnv-suggestion {
+  background: #F0F7F2;
+  border: 1px dashed #4A7C5980;
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 4px 0 2px;
+  font-size: 12px;
+  color: var(--primary);
+  line-height: 1.5;
+}
+.cnv-suggestion .label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  font-family: var(--SF);
+}
+.cnv-actions { display: flex; gap: 8px; margin-top: 8px; }
+.cnv-accept {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--SF);
+}
+.cnv-reject {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--SF);
+}
+
+.chat-input-wrap {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.chat-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--SF);
+  color: var(--text);
+  resize: none;
+  outline: none;
+  line-height: 1.4;
+}
+.chat-cnv-btn {
+  background: var(--tag);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 10px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chat-send {
+  background: var(--primary);
+  border: none;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ══════════════════════════════════════════════
+   TELA 3 — SESSÃO GUIADA
+══════════════════════════════════════════════ */
+
+.session-hero {
+  background: linear-gradient(135deg, var(--primary), #1A2820);
+  padding: 44px 20px 28px;
+  text-align: center;
+  color: #fff;
+}
+.session-hero .eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-family: var(--SF);
+}
+.session-hero h2 {
+  font-family: var(--GF);
+  font-size: 22px;
+  font-weight: 300;
+  margin-bottom: 6px;
+}
+.session-hero p {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.participants {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.participant {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--GF);
+}
+.avatar.p1 { background: rgba(142,196,161,0.25); color: #8EC4A1; border: 2px solid rgba(142,196,161,0.5); }
+.avatar.p2 { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); border: 2px solid rgba(255,255,255,0.2); }
+.avatar.online::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  background: #4ADE80;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  position: absolute;
+  bottom: 0;
+  right: 0;
+}
+.participant-name { font-size: 11px; color: rgba(255,255,255,0.6); font-family: var(--SF); }
+.connector { font-size: 18px; color: rgba(255,255,255,0.25); }
+
+.step-progress {
+  display: flex;
+  gap: 4px;
+  margin: 16px 20px 0;
+}
+.step-dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.15);
+}
+.step-dot.done { background: #8EC4A1; }
+.step-dot.active { background: rgba(255,255,255,0.7); }
+
+.session-step-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--accent);
+}
+.step-number {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: var(--SF);
+  margin-bottom: 6px;
+}
+.step-title {
+  font-family: var(--GF);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.step-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.step-turn {
+  background: var(--tag);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 600;
+  font-family: var(--GF);
+}
+.step-turn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ADE80;
+  flex-shrink: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.ia-bubble {
+  background: linear-gradient(135deg, #E8F0EA, #F0F7F2);
+  border: 1px solid #C8DDD0;
+  border-radius: 16px;
+  border-top-left-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.ia-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: var(--SF);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ia-text {
+  font-size: 13px;
+  color: var(--primary);
+  line-height: 1.6;
+  font-family: var(--GF);
+  font-style: italic;
+}
+
+.session-controls {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 14px 16px 28px;
+}
+.session-controls .row { gap: 8px; }
+
+.tema-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.tema-chip {
+  background: var(--tag);
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+  font-family: var(--GF);
+  font-weight: 600;
+}
+.tema-chip.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+
+<div class="page-hdr">
+  <div class="label">DesConflito</div>
+  <h1>v12 — <em>Mockup</em></h1>
+  <p>Três novas telas no tema Floresta. Navegue entre elas antes de implementar.</p>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="show('dashboard')">📊 Dashboard</button>
+    <button class="nav-tab" onclick="show('chat')">💬 Chat</button>
+    <button class="nav-tab" onclick="show('sessao-inicio')">🎯 Sessão — Início</button>
+    <button class="nav-tab" onclick="show('sessao-ativa')">▶ Sessão — Em curso</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     TELA 1: DASHBOARD DO CASAL
+════════════════════════════════════════════ -->
+<div class="section visible" id="s-dashboard">
+  <div class="section-label">
+    <h2>Dashboard do casal</h2>
+    <p>Visão consolidada: check-ins, acordos, marcos e próximos lembretes</p>
+  </div>
+  <div class="phone">
+
+    <!-- Greeting hero -->
+    <div class="dash-greeting">
+      <div class="eyebrow">Quinta-feira, 22 de maio</div>
+      <h2>Olá, <em>Mariana</em> 👋</h2>
+      <div class="sub">Última sincronização às 09:14</div>
+      <div class="dash-stats">
+        <div class="dash-stat">
+          <div class="n">4</div>
+          <div class="l">acordos ativos</div>
+        </div>
+        <div class="dash-stat">
+          <div class="n">12</div>
+          <div class="l">check-ins</div>
+        </div>
+        <div class="dash-stat">
+          <div class="n">3</div>
+          <div class="l">marcos</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="body">
+
+      <!-- Reminder banner -->
+      <div class="reminder-banner">
+        <div class="reminder-icon">🎂</div>
+        <div class="reminder-text">
+          <div class="t">Aniversário de 3 anos juntos</div>
+          <div class="s">Hoje · Toque para gerar uma mensagem</div>
+        </div>
+        <button class="btn-sm">✨</button>
+      </div>
+
+      <!-- Acordos em andamento -->
+      <div class="section-hdr">
+        <h3>Acordos em andamento</h3>
+        <a>ver todos →</a>
+      </div>
+
+      <div class="card-sm">
+        <div class="row">
+          <div>
+            <div class="card-title" style="font-size:13px;">Finanças do mês</div>
+            <div class="card-sub" style="font-size:11px;">Decidir juntos gastos acima de R$ 200</div>
+          </div>
+          <span class="tag tag-green">Expresso</span>
+        </div>
+        <div class="progress-bar" style="margin-top:10px;">
+          <div class="progress-fill" style="width:75%;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">75% dos compromissos cumpridos</div>
+      </div>
+
+      <div class="card-sm">
+        <div class="row">
+          <div>
+            <div class="card-title" style="font-size:13px;">Tempo de qualidade</div>
+            <div class="card-sub" style="font-size:11px;">Uma noite por semana sem telas</div>
+          </div>
+          <span class="tag tag-amber">Em curso</span>
+        </div>
+        <div class="progress-bar" style="margin-top:10px;">
+          <div class="progress-fill" style="width:40%;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">2 de 5 semanas cumpridas</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Atividade recente -->
+      <div class="section-hdr">
+        <h3>Atividade recente</h3>
+      </div>
+      <div class="card" style="padding:14px 18px;">
+        <div class="activity-item">
+          <div class="activity-dot checkin"></div>
+          <div>
+            <div class="activity-text"><strong>Carlos</strong> fez check-in: "me sinto ansioso"</div>
+            <div class="activity-time">Hoje às 08:32</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot acordo"></div>
+          <div>
+            <div class="activity-text">Acordo <strong>Divisão de tarefas</strong> atualizado</div>
+            <div class="activity-time">Ontem às 21:10</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot reminder"></div>
+          <div>
+            <div class="activity-text">Marco <strong>Primeira viagem juntos</strong> registrado</div>
+            <div class="activity-time">Seg · 18 mai</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ações rápidas -->
+      <div class="row" style="margin-top:4px;">
+        <button class="btn-outline" style="flex:1;font-size:12px;">+ Check-in</button>
+        <button class="btn-outline" style="flex:1;font-size:12px;">💬 Comunicar</button>
+        <button class="btn-outline" style="flex:1;font-size:12px;">📖 Marco</button>
+      </div>
+
+    </div>
+
+    <div class="bottom-nav">
+      <div class="nav-item active"><span class="nav-icon">📊</span>Dashboard</div>
+      <div class="nav-item"><span class="nav-icon">🤝</span>Acordos</div>
+      <div class="nav-item"><span class="nav-icon">💬</span>Chat</div>
+      <div class="nav-item"><span class="nav-icon">🎯</span>Sessão</div>
+      <div class="nav-item"><span class="nav-icon">📖</span>História</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     TELA 2: CHAT ENTRE PARCEIROS
+════════════════════════════════════════════ -->
+<div class="section" id="s-chat">
+  <div class="section-label">
+    <h2>Chat entre parceiros</h2>
+    <p>Mensagens assíncronas com sugestão de reformulação em CNV pela IA</p>
+  </div>
+  <div class="phone">
+    <div class="hdr">
+      <button class="hdr-back">‹</button>
+      <div style="flex:1;">
+        <div class="hdr-title">💬 Carlos &amp; Mariana</div>
+        <div class="hdr-sub">Carlos está online agora</div>
+      </div>
+      <div class="hdr-right">⋯</div>
+    </div>
+
+    <div class="chat-body">
+
+      <!-- Mensagem do parceiro -->
+      <div class="bubble-wrap partner">
+        <div class="bubble partner">
+          Você sempre chega tarde quando combinamos jantar juntos. Já é a terceira vez esse mês.
+        </div>
+        <div class="bubble-meta">Carlos · 19:42</div>
+      </div>
+
+      <!-- IA sugere reformulação CNV -->
+      <div style="padding: 4px 0;">
+        <div class="cnv-suggestion">
+          <div class="label">✦ Sugestão em CNV</div>
+          Observo que chegamos a jantar depois do horário combinado três vezes este mês. Sinto frustração e solidão quando isso acontece, porque preciso de conexão e de sentir que nosso tempo juntos é prioridade. Você poderia me avisar com antecedência quando precisar atrasar?
+          <div class="cnv-actions">
+            <button class="cnv-accept">Usar esta versão</button>
+            <button class="cnv-reject">Manter original</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resposta minha com badge CNV -->
+      <div class="bubble-wrap me">
+        <div class="bubble me">
+          Observo que chegamos a jantar depois do horário combinado três vezes este mês. Sinto frustração e solidão quando isso acontece, porque preciso de conexão e sentir que nosso tempo juntos é prioridade. Você poderia me avisar com antecedência quando precisar atrasar?
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px;gap:6px;align-items:center;">
+          <span class="cnv-badge">CNV</span>
+          <div class="bubble-meta" style="text-align:right;">Mariana · 19:44</div>
+        </div>
+      </div>
+
+      <!-- Resposta do parceiro -->
+      <div class="bubble-wrap partner">
+        <div class="bubble partner">
+          Você tem razão. Vou avisar quando tiver imprevistos. Obrigado por me dizer isso com calma. 💚
+        </div>
+        <div class="bubble-meta">Carlos · 19:47</div>
+      </div>
+
+      <!-- Mensagem digitando -->
+      <div class="bubble-wrap me" style="opacity:0.6;">
+        <div class="bubble me" style="padding:12px 16px;">
+          <div style="display:flex;gap:4px;align-items:center;">
+            <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.7);display:inline-block;"></span>
+            <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.7);display:inline-block;"></span>
+            <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.7);display:inline-block;"></span>
+          </div>
+        </div>
+        <div class="bubble-meta me">digitando…</div>
+      </div>
+
+    </div>
+
+    <div class="chat-input-wrap">
+      <button class="chat-cnv-btn" title="Reformular em CNV">✦</button>
+      <textarea class="chat-input" rows="1" placeholder="Escreva uma mensagem…"></textarea>
+      <button class="chat-send">➤</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     TELA 3a: SESSÃO GUIADA — INÍCIO
+════════════════════════════════════════════ -->
+<div class="section" id="s-sessao-inicio">
+  <div class="section-label">
+    <h2>Sessão guiada — Início</h2>
+    <p>Escolha do tema antes de começar o fluxo conjunto</p>
+  </div>
+  <div class="phone">
+    <div class="session-hero">
+      <div class="eyebrow">Modo sessão guiada</div>
+      <h2>Vamos conversar juntos</h2>
+      <p>A IA guia vocês passo a passo para chegar a um entendimento</p>
+      <div class="participants">
+        <div class="participant">
+          <div class="avatar p1" style="position:relative;">M</div>
+          <div class="participant-name">Mariana ✓</div>
+        </div>
+        <div class="connector">⟷</div>
+        <div class="participant">
+          <div class="avatar p2">C</div>
+          <div class="participant-name">Carlos…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="body">
+
+      <div class="ia-bubble">
+        <div class="ia-label">✦ Guia</div>
+        <div class="ia-text">"Escolham juntos o tema principal desta conversa. Não precisa ser o problema todo — só o ponto de partida."</div>
+      </div>
+
+      <div class="card-title" style="margin-bottom:10px;">Sobre o que vocês querem conversar?</div>
+      <div class="tema-chips">
+        <div class="tema-chip selected">💰 Finanças</div>
+        <div class="tema-chip">⏰ Tempo juntos</div>
+        <div class="tema-chip">🏠 Rotina de casa</div>
+        <div class="tema-chip">👨‍👩‍👧 Família</div>
+        <div class="tema-chip">💑 Intimidade</div>
+        <div class="tema-chip">📌 Outro</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="card-sub" style="margin-bottom:8px;">Contexto (opcional)</div>
+        <textarea style="width:100%;border:1.5px solid var(--border);border-radius:14px;padding:11px 14px;font-size:13px;font-family:var(--SF);background:#FAFBF9;resize:none;outline:none;color:var(--text);line-height:1.6;" rows="2" placeholder="Ex: discutimos sobre cartão de crédito ontem…"></textarea>
+      </div>
+
+      <div style="margin-top:16px;">
+        <button class="btn" style="width:100%;text-align:center;">Começar sessão →</button>
+        <div style="text-align:center;margin-top:10px;font-size:12px;color:var(--muted);">Aguardando Carlos entrar…</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     TELA 3b: SESSÃO GUIADA — EM CURSO
+════════════════════════════════════════════ -->
+<div class="section" id="s-sessao-ativa">
+  <div class="section-label">
+    <h2>Sessão guiada — Em curso</h2>
+    <p>Passo 2 de 5: Mariana está expressando seu ponto de vista</p>
+  </div>
+  <div class="phone">
+
+    <div class="session-hero" style="padding-bottom:0;">
+      <div class="eyebrow">Sessão em andamento · Finanças</div>
+      <h2>Passo 2 — Expressão</h2>
+      <p>Mariana compartilha como se sente sobre o tema</p>
+      <div class="step-progress">
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+    </div>
+
+    <div class="body">
+
+      <div class="ia-bubble">
+        <div class="ia-label">✦ Guia</div>
+        <div class="ia-text">"Mariana, descreva como você se sente sobre as finanças do casal. Carlos, este é o momento de ouvir sem interromper."</div>
+      </div>
+
+      <div class="session-step-card">
+        <div class="step-number">Passo 2 de 5 · Expressão</div>
+        <div class="step-title">Mariana está falando</div>
+        <div class="step-desc">Expressão livre do ponto de vista — fatos, emoções e necessidades, sem julgamentos.</div>
+        <div class="step-turn">
+          <div class="dot"></div>
+          Sua vez, Mariana
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-sub" style="margin-bottom:8px;font-weight:600;color:var(--primary);font-size:13px;">O que você quer dizer?</div>
+        <textarea style="width:100%;border:1.5px solid var(--border);border-radius:14px;padding:11px 14px;font-size:13px;font-family:var(--SF);background:#FAFBF9;resize:none;outline:none;color:var(--text);line-height:1.6;" rows="4" placeholder="Escreva livremente. A IA vai ajudar a formatar em CNV antes de enviar para Carlos…"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn-ghost" style="font-size:12px;">✦ Formatar em CNV</button>
+          <button class="btn" style="font-size:12px;flex:1;">Compartilhar com Carlos →</button>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;background:var(--tag);border-radius:12px;padding:10px 14px;">
+        <span style="font-size:16px;">👁️</span>
+        <div style="font-size:12px;color:var(--primary);"><strong>Carlos</strong> está aguardando sua vez em modo de escuta</div>
+      </div>
+
+    </div>
+
+    <div class="session-controls">
+      <div class="row">
+        <button class="btn-outline" style="font-size:12px;flex:1;">⏸ Pausar sessão</button>
+        <button class="btn-outline" style="font-size:12px;flex:1;color:var(--red);border-color:var(--red);">✕ Encerrar</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('visible');
+  event.target.classList.add('active');
+  window.scrollTo({ top: document.querySelector('.page-hdr').offsetHeight, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
