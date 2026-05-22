@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DesConflito — Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;1,300&family=DM+Sans:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&family=Inter:wght@300;400;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lato:wght@300;400;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Karla:wght@400;600&display=swap">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a1a; font-family: 'Inter', sans-serif; color: #fff; }
+
+  .page-header {
+    padding: 40px 24px 32px;
+    text-align: center;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    color: #eee;
+    margin-bottom: 8px;
+  }
+  .page-header p {
+    font-size: 14px;
+    color: #888;
+    max-width: 500px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+    padding: 0 32px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 1fr; padding: 0 16px 40px; }
+  }
+
+  .theme-card {
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+
+  .theme-label {
+    padding: 12px 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #aaa;
+    background: #111;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .theme-label span.badge {
+    background: #333;
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 10px;
+    color: #888;
+  }
+  .theme-label span.badge.current {
+    background: #2D4A3E33;
+    color: #5C8A6A;
+    border: 1px solid #5C8A6A44;
+  }
+
+  /* ─── SHARED PHONE WRAPPER ─────────────────── */
+  .phone {
+    display: flex;
+    flex-direction: column;
+    min-height: 620px;
+    font-size: 14px;
+  }
+
+  /* ═══════════════════════════════════════════
+     TEMA 1 — FLORESTA (atual)
+  ═══════════════════════════════════════════ */
+  .t1 { background: #F4F6F3; color: #1A2820; font-family: 'DM Sans', sans-serif; }
+
+  .t1 .splash {
+    background: linear-gradient(160deg,#1A2820 0%,#2D4A3E 60%,#3D6B55 100%);
+    padding: 56px 28px 40px;
+    text-align: center;
+    flex: 0 0 auto;
+  }
+  .t1 .splash .eyebrow { font-family: 'Fraunces', serif; font-size: 11px; letter-spacing: 0.3em; color: rgba(255,255,255,0.45); text-transform: uppercase; font-style: italic; margin-bottom: 14px; }
+  .t1 .splash h1 { font-family: 'Fraunces', serif; font-size: 40px; font-weight: 300; color: #fff; line-height: 1.1; margin-bottom: 10px; }
+  .t1 .splash h1 em { font-style: italic; color: #8EC4A1; }
+  .t1 .splash p { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.6; margin-bottom: 36px; }
+  .t1 .splash .btn-primary { background: rgba(92,138,106,0.35); border: 1.5px solid rgba(142,196,161,0.6); border-radius: 50px; padding: 13px 0; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: 'Fraunces', serif; display: block; width: 100%; margin-bottom: 10px; }
+  .t1 .splash .btn-secondary { background: transparent; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 50px; padding: 13px 0; color: rgba(255,255,255,0.8); font-size: 15px; cursor: pointer; font-family: 'Fraunces', serif; display: block; width: 100%; }
+
+  .t1 .body { padding: 20px 16px; flex: 1; }
+  .t1 .card { background: #fff; border-radius: 20px; padding: 18px; box-shadow: 0 1px 10px rgba(0,0,0,0.06); margin-bottom: 12px; }
+  .t1 .card-title { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; color: #2D4A3E; margin-bottom: 6px; }
+  .t1 .card-sub { font-size: 12px; color: #6B7F72; line-height: 1.5; }
+  .t1 .tag { background: #E8EFE9; color: #2D4A3E; border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 600; display: inline-block; }
+  .t1 .hdr { background: #fff; border-bottom: 1px solid #D8E4DC; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+  .t1 .hdr-back { font-size: 22px; color: #2D4A3E; background: none; border: none; cursor: pointer; }
+  .t1 .hdr-title { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 700; color: #2D4A3E; }
+  .t1 .hdr-sub { font-size: 11px; color: #6B7F72; margin-top: 1px; }
+  .t1 .nav { display: flex; justify-content: space-around; padding: 12px 8px; background: #fff; border-top: 1px solid #D8E4DC; }
+  .t1 .nav-item { text-align: center; font-size: 10px; color: #6B7F72; display: flex; flex-direction: column; gap: 3px; align-items: center; }
+  .t1 .nav-item.active { color: #2D4A3E; }
+  .t1 .nav-icon { font-size: 20px; }
+  .t1 .accent-btn { background: #5C8A6A; border: none; border-radius: 14px; padding: 11px 20px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Fraunces', serif; }
+
+  /* ═══════════════════════════════════════════
+     TEMA 2 — TERRACOTA
+  ═══════════════════════════════════════════ */
+  .t2 { background: #FDF8F3; color: #2C1810; font-family: 'Nunito', sans-serif; }
+
+  .t2 .splash {
+    background: linear-gradient(160deg,#4A1A08 0%,#7C3A1E 55%,#A8522A 100%);
+    padding: 56px 28px 40px;
+    text-align: center;
+    flex: 0 0 auto;
+  }
+  .t2 .splash .eyebrow { font-family: 'Playfair Display', serif; font-size: 11px; letter-spacing: 0.3em; color: rgba(255,255,255,0.45); text-transform: uppercase; font-style: italic; margin-bottom: 14px; }
+  .t2 .splash h1 { font-family: 'Playfair Display', serif; font-size: 40px; font-weight: 400; color: #fff; line-height: 1.1; margin-bottom: 10px; }
+  .t2 .splash h1 em { font-style: italic; color: #F4C59A; }
+  .t2 .splash p { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; margin-bottom: 36px; font-family: 'Nunito', sans-serif; }
+  .t2 .splash .btn-primary { background: rgba(196,98,26,0.4); border: 1.5px solid rgba(244,197,154,0.7); border-radius: 50px; padding: 13px 0; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Nunito', sans-serif; display: block; width: 100%; margin-bottom: 10px; }
+  .t2 .splash .btn-secondary { background: transparent; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 50px; padding: 13px 0; color: rgba(255,255,255,0.8); font-size: 15px; cursor: pointer; font-family: 'Nunito', sans-serif; display: block; width: 100%; }
+
+  .t2 .body { padding: 20px 16px; flex: 1; }
+  .t2 .card { background: #FFFAF5; border-radius: 24px; padding: 18px; box-shadow: 0 2px 16px rgba(124,58,30,0.08); margin-bottom: 12px; border: 1px solid #EAD9C8; }
+  .t2 .card-title { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700; color: #7C3A1E; margin-bottom: 6px; }
+  .t2 .card-sub { font-size: 12px; color: #9B7B6B; line-height: 1.5; }
+  .t2 .tag { background: #F5EDE0; color: #7C3A1E; border-radius: 50px; padding: 4px 12px; font-size: 11px; font-weight: 700; display: inline-block; }
+  .t2 .hdr { background: #FFFAF5; border-bottom: 1px solid #EAD9C8; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+  .t2 .hdr-back { font-size: 22px; color: #7C3A1E; background: none; border: none; cursor: pointer; }
+  .t2 .hdr-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #7C3A1E; }
+  .t2 .hdr-sub { font-size: 11px; color: #9B7B6B; margin-top: 1px; font-family: 'Nunito', sans-serif; }
+  .t2 .nav { display: flex; justify-content: space-around; padding: 12px 8px; background: #FFFAF5; border-top: 1px solid #EAD9C8; }
+  .t2 .nav-item { text-align: center; font-size: 10px; color: #9B7B6B; display: flex; flex-direction: column; gap: 3px; align-items: center; font-family: 'Nunito', sans-serif; }
+  .t2 .nav-item.active { color: #7C3A1E; font-weight: 700; }
+  .t2 .nav-icon { font-size: 20px; }
+  .t2 .accent-btn { background: #C4621A; border: none; border-radius: 50px; padding: 11px 24px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'Nunito', sans-serif; }
+
+  /* ═══════════════════════════════════════════
+     TEMA 3 — AZUL SERENIDADE
+  ═══════════════════════════════════════════ */
+  .t3 { background: #F0F4FA; color: #1A2540; font-family: 'Lato', sans-serif; }
+
+  .t3 .splash {
+    background: linear-gradient(160deg,#0D1B3E 0%,#1E3A7A 55%,#2B5299 100%);
+    padding: 56px 28px 40px;
+    text-align: center;
+    flex: 0 0 auto;
+  }
+  .t3 .splash .eyebrow { font-family: 'Libre Baskerville', serif; font-size: 11px; letter-spacing: 0.3em; color: rgba(255,255,255,0.4); text-transform: uppercase; font-style: italic; margin-bottom: 14px; }
+  .t3 .splash h1 { font-family: 'Libre Baskerville', serif; font-size: 40px; font-weight: 700; color: #fff; line-height: 1.1; margin-bottom: 10px; }
+  .t3 .splash h1 em { font-style: italic; color: #A8C4F0; font-weight: 400; }
+  .t3 .splash p { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; margin-bottom: 36px; font-family: 'Lato', sans-serif; }
+  .t3 .splash .btn-primary { background: rgba(107,143,212,0.35); border: 1.5px solid rgba(168,196,240,0.65); border-radius: 50px; padding: 13px 0; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Lato', sans-serif; display: block; width: 100%; margin-bottom: 10px; }
+  .t3 .splash .btn-secondary { background: transparent; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 50px; padding: 13px 0; color: rgba(255,255,255,0.8); font-size: 15px; cursor: pointer; font-family: 'Lato', sans-serif; display: block; width: 100%; }
+  .t3 .body { padding: 20px 16px; flex: 1; }
+  .t3 .card { background: #fff; border-radius: 18px; padding: 18px; box-shadow: 0 2px 20px rgba(30,58,122,0.08); margin-bottom: 12px; border-left: 3px solid #6B8FD4; }
+  .t3 .card-title { font-family: 'Libre Baskerville', serif; font-size: 15px; font-weight: 700; color: #1E3A7A; margin-bottom: 6px; }
+  .t3 .card-sub { font-size: 12px; color: #5A6E9B; line-height: 1.5; }
+  .t3 .tag { background: #E8EFF9; color: #1E3A7A; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; display: inline-block; }
+  .t3 .hdr { background: #fff; border-bottom: 1px solid #D0DCF0; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+  .t3 .hdr-back { font-size: 22px; color: #1E3A7A; background: none; border: none; cursor: pointer; }
+  .t3 .hdr-title { font-family: 'Libre Baskerville', serif; font-size: 16px; font-weight: 700; color: #1E3A7A; }
+  .t3 .hdr-sub { font-size: 11px; color: #5A6E9B; margin-top: 1px; }
+  .t3 .nav { display: flex; justify-content: space-around; padding: 12px 8px; background: #fff; border-top: 1px solid #D0DCF0; }
+  .t3 .nav-item { text-align: center; font-size: 10px; color: #5A6E9B; display: flex; flex-direction: column; gap: 3px; align-items: center; }
+  .t3 .nav-item.active { color: #1E3A7A; font-weight: 700; }
+  .t3 .nav-icon { font-size: 20px; }
+  .t3 .accent-btn { background: #2B5299; border: none; border-radius: 12px; padding: 11px 20px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'Lato', sans-serif; }
+
+  /* ═══════════════════════════════════════════
+     TEMA 4 — MINIMAL MODERNO
+  ═══════════════════════════════════════════ */
+  .t4 { background: #FAFAFA; color: #111; font-family: 'Inter', sans-serif; }
+
+  .t4 .splash {
+    background: #111;
+    padding: 56px 28px 40px;
+    text-align: center;
+    flex: 0 0 auto;
+  }
+  .t4 .splash .eyebrow { font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 0.4em; color: rgba(255,255,255,0.3); text-transform: uppercase; margin-bottom: 14px; }
+  .t4 .splash h1 { font-family: 'Inter', sans-serif; font-size: 42px; font-weight: 300; color: #fff; line-height: 1.05; margin-bottom: 10px; letter-spacing: -0.02em; }
+  .t4 .splash h1 em { font-style: normal; color: #E0E0E0; font-weight: 600; }
+  .t4 .splash p { font-size: 13px; color: rgba(255,255,255,0.45); line-height: 1.7; margin-bottom: 40px; letter-spacing: 0.01em; }
+  .t4 .splash .btn-primary { background: #fff; border: none; border-radius: 4px; padding: 14px 0; color: #111; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; display: block; width: 100%; margin-bottom: 10px; letter-spacing: 0.02em; }
+  .t4 .splash .btn-secondary { background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 14px 0; color: rgba(255,255,255,0.7); font-size: 14px; cursor: pointer; font-family: 'Inter', sans-serif; display: block; width: 100%; }
+  .t4 .body { padding: 20px 16px; flex: 1; }
+  .t4 .card { background: #fff; border-radius: 8px; padding: 18px; box-shadow: none; border: 1px solid #E8E8E8; margin-bottom: 8px; }
+  .t4 .card-title { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #111; margin-bottom: 6px; letter-spacing: -0.01em; }
+  .t4 .card-sub { font-size: 12px; color: #888; line-height: 1.5; }
+  .t4 .tag { background: #F0F0F0; color: #444; border-radius: 4px; padding: 4px 8px; font-size: 10px; font-weight: 600; display: inline-block; letter-spacing: 0.05em; text-transform: uppercase; }
+  .t4 .hdr { background: #fff; border-bottom: 1px solid #EBEBEB; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+  .t4 .hdr-back { font-size: 20px; color: #111; background: none; border: none; cursor: pointer; }
+  .t4 .hdr-title { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: #111; letter-spacing: -0.01em; }
+  .t4 .hdr-sub { font-size: 11px; color: #aaa; margin-top: 1px; letter-spacing: 0.02em; }
+  .t4 .nav { display: flex; justify-content: space-around; padding: 12px 8px; background: #fff; border-top: 1px solid #EBEBEB; }
+  .t4 .nav-item { text-align: center; font-size: 10px; color: #aaa; display: flex; flex-direction: column; gap: 3px; align-items: center; letter-spacing: 0.02em; }
+  .t4 .nav-item.active { color: #111; font-weight: 600; }
+  .t4 .nav-icon { font-size: 20px; }
+  .t4 .accent-btn { background: #111; border: none; border-radius: 4px; padding: 11px 20px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; letter-spacing: 0.02em; }
+
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>DesConflito — Design Options</h1>
+  <p>Quatro direções visuais com a mesma estrutura de interface. Escolha a que mais se alinha com a identidade que você quer para o app.</p>
+</div>
+
+<div class="grid">
+
+  <!-- ─── TEMA 1: FLORESTA (atual) ─── -->
+  <div class="theme-card">
+    <div class="theme-label">
+      Opção 1 — Floresta (atual)
+      <span class="badge current">versão atual</span>
+    </div>
+    <div class="phone t1">
+      <div class="t1 splash">
+        <div class="eyebrow">Acordo Entre Nós</div>
+        <h1>Des<em>Conflito</em></h1>
+        <p>Clareza, cuidado e acordo entre vocês.</p>
+        <button class="btn-primary">✨ Criar meu casal</button>
+        <button class="btn-secondary">Entrar com código</button>
+      </div>
+      <div class="t1 hdr">
+        <button class="hdr-back">‹</button>
+        <div>
+          <div class="hdr-title">🤝 Nossos Acordos</div>
+          <div class="hdr-sub">Acordos ativos · 3 em andamento</div>
+        </div>
+      </div>
+      <div class="t1 body">
+        <div class="t1 card">
+          <div class="card-title">Finanças do mês</div>
+          <div class="card-sub">Decidir juntos gastos acima de R$ 200 antes de efetuar</div>
+          <div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+            <span class="t1 tag">Expresso ✓</span>
+          </div>
+        </div>
+        <div class="t1 card">
+          <div class="card-title">Tempo de qualidade</div>
+          <div class="card-sub">Uma noite por semana sem telas, só nós dois</div>
+          <div style="margin-top:10px;">
+            <span class="t1 tag">Em andamento</span>
+          </div>
+        </div>
+        <div style="text-align:center;padding:8px 0;">
+          <button class="t1 accent-btn">+ Novo acordo</button>
+        </div>
+      </div>
+      <div class="t1 nav">
+        <div class="nav-item active"><span class="nav-icon">🏠</span>Início</div>
+        <div class="nav-item"><span class="nav-icon">🤝</span>Acordos</div>
+        <div class="nav-item"><span class="nav-icon">💬</span>CNV</div>
+        <div class="nav-item"><span class="nav-icon">📖</span>História</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TEMA 2: TERRACOTA ─── -->
+  <div class="theme-card">
+    <div class="theme-label">
+      Opção 2 — Terracota
+      <span class="badge">alternativa</span>
+    </div>
+    <div class="phone t2">
+      <div class="t2 splash">
+        <div class="eyebrow">Acordo Entre Nós</div>
+        <h1>Des<em>Conflito</em></h1>
+        <p>Clareza, cuidado e acordo entre vocês.</p>
+        <button class="btn-primary">✨ Criar meu casal</button>
+        <button class="btn-secondary">Entrar com código</button>
+      </div>
+      <div class="t2 hdr">
+        <button class="hdr-back">‹</button>
+        <div>
+          <div class="hdr-title">🤝 Nossos Acordos</div>
+          <div class="hdr-sub">Acordos ativos · 3 em andamento</div>
+        </div>
+      </div>
+      <div class="t2 body">
+        <div class="t2 card">
+          <div class="card-title">Finanças do mês</div>
+          <div class="card-sub">Decidir juntos gastos acima de R$ 200 antes de efetuar</div>
+          <div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+            <span class="t2 tag">Expresso ✓</span>
+          </div>
+        </div>
+        <div class="t2 card">
+          <div class="card-title">Tempo de qualidade</div>
+          <div class="card-sub">Uma noite por semana sem telas, só nós dois</div>
+          <div style="margin-top:10px;">
+            <span class="t2 tag">Em andamento</span>
+          </div>
+        </div>
+        <div style="text-align:center;padding:8px 0;">
+          <button class="t2 accent-btn">+ Novo acordo</button>
+        </div>
+      </div>
+      <div class="t2 nav">
+        <div class="nav-item active"><span class="nav-icon">🏠</span>Início</div>
+        <div class="nav-item"><span class="nav-icon">🤝</span>Acordos</div>
+        <div class="nav-item"><span class="nav-icon">💬</span>CNV</div>
+        <div class="nav-item"><span class="nav-icon">📖</span>História</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TEMA 3: AZUL SERENIDADE ─── -->
+  <div class="theme-card">
+    <div class="theme-label">
+      Opção 3 — Azul Serenidade
+      <span class="badge">alternativa</span>
+    </div>
+    <div class="phone t3">
+      <div class="t3 splash">
+        <div class="eyebrow">Acordo Entre Nós</div>
+        <h1>Des<em>Conflito</em></h1>
+        <p>Clareza, cuidado e acordo entre vocês.</p>
+        <button class="btn-primary">✨ Criar meu casal</button>
+        <button class="btn-secondary">Entrar com código</button>
+      </div>
+      <div class="t3 hdr">
+        <button class="hdr-back">‹</button>
+        <div>
+          <div class="hdr-title">🤝 Nossos Acordos</div>
+          <div class="hdr-sub">Acordos ativos · 3 em andamento</div>
+        </div>
+      </div>
+      <div class="t3 body">
+        <div class="t3 card">
+          <div class="card-title">Finanças do mês</div>
+          <div class="card-sub">Decidir juntos gastos acima de R$ 200 antes de efetuar</div>
+          <div style="margin-top:10px;">
+            <span class="t3 tag">Expresso ✓</span>
+          </div>
+        </div>
+        <div class="t3 card">
+          <div class="card-title">Tempo de qualidade</div>
+          <div class="card-sub">Uma noite por semana sem telas, só nós dois</div>
+          <div style="margin-top:10px;">
+            <span class="t3 tag">Em andamento</span>
+          </div>
+        </div>
+        <div style="text-align:center;padding:8px 0;">
+          <button class="t3 accent-btn">+ Novo acordo</button>
+        </div>
+      </div>
+      <div class="t3 nav">
+        <div class="nav-item active"><span class="nav-icon">🏠</span>Início</div>
+        <div class="nav-item"><span class="nav-icon">🤝</span>Acordos</div>
+        <div class="nav-item"><span class="nav-icon">💬</span>CNV</div>
+        <div class="nav-item"><span class="nav-icon">📖</span>História</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TEMA 4: MINIMAL MODERNO ─── -->
+  <div class="theme-card">
+    <div class="theme-label">
+      Opção 4 — Minimal Moderno
+      <span class="badge">alternativa</span>
+    </div>
+    <div class="phone t4">
+      <div class="t4 splash">
+        <div class="eyebrow">Acordo Entre Nós</div>
+        <h1>Des<em>Conflito</em></h1>
+        <p>Clareza, cuidado e acordo entre vocês.</p>
+        <button class="btn-primary">Criar meu casal →</button>
+        <button class="btn-secondary">Entrar com código</button>
+      </div>
+      <div class="t4 hdr">
+        <button class="hdr-back">←</button>
+        <div>
+          <div class="hdr-title">Nossos Acordos</div>
+          <div class="hdr-sub">3 acordos ativos</div>
+        </div>
+      </div>
+      <div class="t4 body">
+        <div class="t4 card">
+          <div class="card-title">Finanças do mês</div>
+          <div class="card-sub">Decidir juntos gastos acima de R$ 200 antes de efetuar</div>
+          <div style="margin-top:10px;">
+            <span class="t4 tag">Expresso</span>
+          </div>
+        </div>
+        <div class="t4 card">
+          <div class="card-title">Tempo de qualidade</div>
+          <div class="card-sub">Uma noite por semana sem telas, só nós dois</div>
+          <div style="margin-top:10px;">
+            <span class="t4 tag">Em andamento</span>
+          </div>
+        </div>
+        <div style="text-align:right;padding:8px 0;">
+          <button class="t4 accent-btn">+ Novo acordo</button>
+        </div>
+      </div>
+      <div class="t4 nav">
+        <div class="nav-item active"><span class="nav-icon">⊞</span>Início</div>
+        <div class="nav-item"><span class="nav-icon">◇</span>Acordos</div>
+        <div class="nav-item"><span class="nav-icon">○</span>CNV</div>
+        <div class="nav-item"><span class="nav-icon">▷</span>História</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
