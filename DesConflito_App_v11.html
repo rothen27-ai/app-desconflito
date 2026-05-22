@@ -165,7 +165,7 @@ let API_KEY="";let DEMO_MODE=false;
 function getKey(){return API_KEY||window._dcApiKey||"";}
 const DEMO_INSIGHTS={conflitante:{reflexao:"Nomear este tema como conflitante já é um ato de honestidade que muitos casais evitam. O conflito aberto, mesmo desconfortável, é mais fértil que o silêncio acumulado.",perguntas:["O que exatamente nesta área te incomoda mais?","Se você soubesse que o outro está incomodado pelas mesmas razões diferentes, o que mudaria?"],sugestao_inicio:"Tem algo sobre este tema que está me pesando e queria tentar colocar em palavras."},tacito:{reflexao:"Acordos tácitos são contratos sem assinatura — e cada parte assume que entendeu as cláusulas do mesmo jeito.",perguntas:["Se você tivesse que colocar em uma frase o que acha que está combinado, o que diria?","Você já verificou se o outro entende este acordo da mesma forma?"],sugestao_inicio:"Percebi que a gente nunca falou diretamente sobre isso — queria checar se estamos alinhados."},inexistente:{reflexao:"Uma área inexistente não é uma área vazia — é uma área que ainda não recebeu linguagem entre vocês.",perguntas:["Por que acha que este tema nunca foi trazido para a conversa diretamente?","Se você fosse introduzir este assunto hoje, qual seria o maior risco?"],sugestao_inicio:"Existe um assunto que nunca trouxemos à tona e acho que precisamos começar a conversar."},expresso:{reflexao:"Ter um acordo expresso é raro e valioso. O que permitiu que vocês chegassem a esse ponto?",perguntas:["O que tornou possível construir clareza aqui?","Como manter e atualizar este acordo à medida que as circunstâncias mudam?"],sugestao_inicio:"Quero revisitar o que acordamos aqui para ver se ainda faz sentido para os dois."}};
 async function mockAi(sys,msg){await new Promise(r=>setTimeout(r,900));if(sys.includes("perspectiva")||sys.includes("INSIGHT")){const st=msg.includes("conflitante")?"conflitante":msg.includes("tacito")||msg.includes("tácito")?"tacito":msg.includes("inexistente")?"inexistente":"expresso";return DEMO_INSIGHTS[st]||DEMO_INSIGHTS.tacito;}if(sys.includes("COMPARE")||sys.includes("Área:")){return{analise:"Há uma diferença de percepção que é comum em casais: cada um tem um mapa diferente da mesma realidade. Isso não significa que alguém está errado.",perguntas:["O que cada um entende como 'combinado' nesta área?","Há alguma decisão recente que ficou sem conversa?","Qual seria um primeiro acordo concreto e pequeno que ambos conseguiriam honrar?"],sugestao:"Vamos definir juntos como vamos lidar com este tema. [Edite aqui o texto do acordo]"};}if(sys.includes("compromissos")){return{compromissos:[{id:"c1",desc:"Conversar sobre o tema uma vez por semana",dono:"ambos",frequencia:"semanal"},{id:"c2",desc:"Tomar decisões importantes juntos antes de agir",dono:"ambos",frequencia:"quando_ocorrer"}]};}if(sys.includes("CNV")){return"Observo: [descreva o fato]\n\nSinto: [nomeie a emoção]\n\nNecessito: [nomeie a necessidade]\n\nPeço: [pedido concreto e positivo]";}if(sys.includes("dicas")){return{dicas:["Definam juntos o que 'sucesso' significa para este projeto","Estabeleçam marcos intermediários para celebrar progresso","Combinem como vão lidar com desvios do plano original"]};}return{padrao:"Você demonstra uma tendência a assumir responsabilidade pelo bem-estar do outro antes de atender às próprias necessidades.",recurso:"Sua capacidade de observar padrões nas relações é um recurso valioso que já está disponível em você.",gesto:"Esta semana, antes de responder ao pedido do parceiro, pergunte-se: 'O que eu genuinamente preciso agora?'",frase_final:"Cuidar de si não é egoísmo — é a condição para que você possa estar presente de verdade com quem ama."};}
-async function mockText(sys,msg){await new Promise(r=>setTimeout(r,700));return"Observo: [fato concreto sem julgamento]\n\nSinto: [emoção nomeada]\n\nNecessito: [necessidade por trás do sentimento]\n\nPeço: [pedido concreto, positivo e realizável]";}
+async function mockText(sys,msg){await new Promise(r=>setTimeout(r,700));if(sys.includes("Guia do DesConflito"))return"Hoje é um dia especial na nossa história. Que bom poder celebrar esta data ao seu lado. 💚";return"Observo: [fato concreto sem julgamento]\n\nSinto: [emoção nomeada]\n\nNecessito: [necessidade por trás do sentimento]\n\nPeço: [pedido concreto, positivo e realizável]";}
 const SYS_INSIGHT=`Terapeuta de casais. APENAS JSON: {"reflexao":"parágrafo reflexivo","perguntas":["pergunta 1","pergunta 2"],"sugestao_inicio":"frase para iniciar conversa"}. Nunca cite metodologias.`;
 const SYS_COMPARE=`Mediadora de casais. APENAS JSON: {"analise":"análise das perspectivas","perguntas":["pergunta 1","pergunta 2","pergunta 3"],"sugestao":"sugestão de texto de acordo editável"}. Nunca cite metodologias.`;
 const SYS_COMPROMISSOS=`Especialista em acordos. APENAS JSON: {"compromissos":[{"desc":"compromisso concreto","dono":"p1|p2|ambos","frequencia":"diaria|semanal|quinzenal|mensal|quando_ocorrer"}]}. Máximo 4.`;
@@ -428,13 +428,14 @@ function Home({casal,active,setActive,go,acordos,sessao,isDemo,role,onSync,syncT
 const[showTConf,setShowTConf]=useState(false);const[newTPin,setNewTPin]=useState("");const[tPinSalvo,setTPinSalvo]=useState(false);
 const[loadingReminder,setLoadingReminder]=useState({});const[reminderMsg,setReminderMsg]=useState({});
 const d0=new Date();const todayMD=(d0.getMonth()+1).toString().padStart(2,"0")+"-"+d0.getDate().toString().padStart(2,"0");
-const reminders=(marcos||[]).filter(m=>m.reminder&&m.data_evento&&m.data_evento.slice(5)===todayMD);
+const isLeapYear=y=>(y%4===0&&y%100!==0)||y%400===0;
+const reminders=(marcos||[]).filter(m=>{if(!m.reminder||!m.data_evento)return false;const md=m.data_evento.slice(5);if(md===todayMD)return true;if(md==="02-29"&&todayMD==="02-28"&&!isLeapYear(d0.getFullYear()))return true;return false;});
 const gerarMsgReminder=async(m)=>{
   setLoadingReminder(p=>({...p,[m.id]:true}));
   const nomeParceiro=myRole==="p1"?casal.p2:casal.p1;const meuNome=casal[myRole]||"você";
   const prompt=`Hoje é o aniversário de um marco importante para este casal: ${m.titulo}.\n${m.nota?`Contexto: ${m.nota}\n`:""}\nEscreva uma mensagem curta, calorosa e pessoal que ${meuNome} poderia enviar para ${nomeParceiro} nessa data.\nTom: ${m.reminder_tom||"carinhoso"}.`;
-  const resp=await ai(SYS_REMINDER,prompt,300);
-  const txt=typeof resp==="string"?resp:(resp?.mensagem||resp?.texto||JSON.stringify(resp));
+  const resp=await aiText(SYS_REMINDER,prompt,300);
+  const txt=resp||"Não foi possível gerar uma mensagem.";
   setReminderMsg(p=>({...p,[m.id]:txt}));setLoadingReminder(p=>({...p,[m.id]:false}));
 };
 const abrirComunicadorReminder=(m,msg)=>{onReminderCNV({campo:"observo",texto:`[Aniversário: ${m.titulo}]\n\n${msg}`});};
@@ -591,7 +592,7 @@ if(fase==="intro")return<div style={{minHeight:"100vh",background:C.bg,fontFamil
 </div>
 </Card></Wrap></div>;
 
-if(fase==="livre")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Comunicação Assertiva" sub="Passo 1 — Expressão livre" onBack={()=>go("home")}/><Banner s={sessao}/><Wrap>
+if(fase==="livre")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Comunicação Assertiva" sub="Passo 1 — Expressão livre" onBack={()=>{if(onClearPrefill)onClearPrefill();go("home");}}/><Banner s={sessao}/><Wrap>
 {isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
 <Card>
 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><span style={{fontSize:22}}>✍️</span><div><p style={{fontWeight:700,color:C.primary,margin:0,fontSize:15}}>Escreva sem filtro</p><p style={{fontSize:12,color:C.muted,margin:"3px 0 0",fontFamily:SF}}>Campo 100% privado — nunca será enviado ao parceiro</p></div></div>
@@ -817,7 +818,9 @@ const salvar=async()=>{
 };
 
 const fmtMarcoData=(m)=>{
+  if(!m.data_evento)return"";
   const d=new Date(m.data_evento+"T12:00:00");
+  if(isNaN(d.getTime()))return m.data_evento;
   if(m.precisao_data==="ano")return d.getFullYear().toString();
   if(m.precisao_data==="mes")return d.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
   return d.toLocaleDateString("pt-BR",{day:"numeric",month:"short",year:"numeric"});
@@ -906,10 +909,11 @@ function App(){
     setLoadingData(true);
     setLoadError(false);
     try{
-      const[a,c,p,m]=await Promise.all([db.loadAcordos(casal_id),db.loadCheckins(casal_id),db.loadProjetos(casal_id),db.loadMarcos(casal_id)]);
-      setAcordos(a);setCheckins(c);setProjetos(p);setMarcos(m||[]);
+      const[a,c,p]=await Promise.all([db.loadAcordos(casal_id),db.loadCheckins(casal_id),db.loadProjetos(casal_id)]);
+      setAcordos(a);setCheckins(c);setProjetos(p);
       setSyncTime(new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}));
     }catch(e){console.error("loadData:",e);setLoadError(true);}
+    try{const m=await db.loadMarcos(casal_id);setMarcos(m||[]);}catch(e){console.error("loadMarcos:",e);}
     setLoadingData(false);
   };
 
@@ -963,7 +967,7 @@ function App(){
     if(!isDemo&&sess?.casal_id){
       const saved=await db.saveMarco(sess.casal_id,marco,role).catch(console.error);
       if(saved&&!marco.id){setMarcos(m=>[...m,saved].sort((a,b)=>a.data_evento>b.data_evento?1:-1));}
-      else{setMarcos(m=>m.map(x=>x.id===marco.id?{...x,...marco}:x));}
+      else{setMarcos(m=>m.map(x=>x.id===marco.id?{...x,...marco,...(saved||{})}:x));}
     } else {
       if(!marco.id){const tmp={...marco,id:"tmp_"+Date.now()};setMarcos(m=>[...m,tmp].sort((a,b)=>a.data_evento>b.data_evento?1:-1));}
       else{setMarcos(m=>m.map(x=>x.id===marco.id?{...x,...marco}:x));}
