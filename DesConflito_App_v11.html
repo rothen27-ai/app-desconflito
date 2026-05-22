@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Acordo Entre Nós</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#F4F6F3;font-family:'DM Sans',system-ui,sans-serif;color:#1A2820}
+input,textarea,button,select{font-family:inherit}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#C8D9C4;border-radius:10px}
+input[type=range]{-webkit-appearance:none;height:6px;border-radius:3px;background:#D8E4DC;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#2D4A3E;cursor:pointer}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dotB{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.fu{animation:fadeUp .3s ease forwards}
+.d1{animation:dotB 1.2s infinite}.d2{animation:dotB 1.2s .2s infinite}.d3{animation:dotB 1.2s .4s infinite}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+
+/* ============ SUPABASE RAW ============ */
+const SUPA_URL="https://anqsvpggrevnhywxjqyi.supabase.co";
+const SUPA_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucXN2cGdncmV2bmh5d3hqcXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzYyMTgsImV4cCI6MjA5MzkxMjIxOH0.b2L6mGJ9aQ2wq2AStJehsqoN0ELuK7xh8_cNeTz-uPE";
+async function supa(method,table,body,params=""){
+  const url=SUPA_URL+"/rest/v1/"+table+(params?"?"+params:"");
+  const isUpsert=method==="POST"&&params.includes("on_conflict");
+  const prefer=isUpsert?"return=representation,resolution=merge-duplicates":"return=representation";
+  const headers={"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":prefer};
+  const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined});
+  if(!r.ok){const e=await r.text();throw new Error(r.status+": "+e);}
+  const txt=await r.text();
+  return txt?JSON.parse(txt):null;
+}
+const SESS_KEY="dc_v04_sess";
+const getSess=()=>{try{return JSON.parse(localStorage.getItem(SESS_KEY));}catch(e){return null;}};
+const setSess=s=>localStorage.setItem(SESS_KEY,JSON.stringify(s));
+const clearSess=()=>localStorage.removeItem(SESS_KEY);
+const gerarCodigo=()=>{const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:8},()=>c[Math.floor(Math.random()*c.length)]).join('');};
+
+/* ============ DB ============ */
+const db={
+  async criarCasal(nome_p1,nome_p2){
+    const codigo=gerarCodigo();
+    const rows=await supa("POST","casais",{codigo,nome_p1,nome_p2:nome_p2||null});
+    return Array.isArray(rows)?rows[0]:rows;
+  },
+  async buscarCasal(codigo){
+    const rows=await supa("GET","casais",null,"codigo=eq."+encodeURIComponent(codigo.trim().toUpperCase())+"&limit=1");
+    if(!rows||rows.length===0)throw new Error("not found");
+    return rows[0];
+  },
+  async loadAcordos(casal_id){
+    const data=await supa("GET","acordos",null,"casal_id=eq."+casal_id)||[];
+    const obj={};
+    data.forEach(r=>{
+      obj[r.area_id]={
+        p1:r.p1_status?{status:r.p1_status,contexto:r.p1_contexto||""}:undefined,
+        p2:r.p2_status?{status:r.p2_status,contexto:r.p2_contexto||""}:undefined,
+        expresso:r.acordo_texto||undefined,savedAt:r.atualizado_em,
+        acordo:r.acordo_texto?{texto:r.acordo_texto,compromissos:r.compromissos||[],indicador:r.indicador||"",revisaoEm:r.revisao_em||"",planoB:r.plano_b||"",lembrete:r.lembrete!==false,versao:r.versao||1,historico:r.historico||[]}:undefined
+      };
+    });
+    return obj;
+  },
+  async saveAcordo(casal_id,area_id,d){
+    const row={casal_id,area_id,
+      p1_status:d.p1?.status||null,p1_contexto:d.p1?.contexto||null,
+      p2_status:d.p2?.status||null,p2_contexto:d.p2?.contexto||null,
+      acordo_texto:d.acordo?.texto||d.expresso||null,
+      compromissos:d.acordo?.compromissos||[],
+      indicador:d.acordo?.indicador||null,revisao_em:d.acordo?.revisaoEm||null,
+      plano_b:d.acordo?.planoB||null,lembrete:d.acordo?.lembrete!==false,
+      versao:d.acordo?.versao||1,historico:d.acordo?.historico||[],
+      atualizado_em:new Date().toISOString()};
+    await supa("POST","acordos",row,"on_conflict=casal_id,area_id");
+  },
+  async loadCheckins(casal_id){
+    const data=await supa("GET","checkins",null,"casal_id=eq."+casal_id+"&order=data.desc&limit=90")||[];
+    const obj={};
+    data.forEach(r=>{if(!obj[r.data])obj[r.data]={};obj[r.data][r.role]={humor:r.humor,abertura:r.abertura,tensao:r.tensao,conexao:r.conexao,nota:r.nota||"",notaRecebida:r.nota_recebida};});
+    return obj;
+  },
+  async saveCheckin(casal_id,role,data,d){
+    await supa("POST","checkins",{casal_id,role,data,humor:d.humor,abertura:d.abertura,tensao:d.tensao,conexao:d.conexao,nota:d.nota||null,nota_recebida:d.notaRecebida||null},"on_conflict=casal_id,role,data");
+  },
+  async loadProjetos(casal_id){
+    const data=await supa("GET","projetos",null,"casal_id=eq."+casal_id+"&order=criado_em.asc")||[];
+    return data.map(r=>({id:r.id,nome:r.nome,status:r.status,...(r.form||{}),criadoEm:r.criado_em}));
+  },
+  async saveProjeto(casal_id,p){
+    const{id,nome,status,criadoEm,...form}=p;
+    const isNew=!id||id.startsWith("tmp_");
+    if(isNew){
+      const rows=await supa("POST","projetos",{casal_id,nome,status,form});
+      return Array.isArray(rows)?rows[0]?.id:rows?.id;
+    }
+    await supa("POST","projetos",{id,casal_id,nome,status,form,atualizado_em:new Date().toISOString()},"on_conflict=id");
+    return id;
+  },
+  async delProjeto(id){await supa("DELETE","projetos",null,"id=eq."+id);},
+  async loadMarcos(casal_id){
+    const data=await supa("GET","historia_marcos",null,"casal_id=eq."+casal_id+"&order=data_evento.asc")||[];
+    return data;
+  },
+  async saveMarco(casal_id,marco,role){
+    const isNew=!marco.id;
+    if(isNew){
+      const rows=await supa("POST","historia_marcos",{casal_id,titulo:marco.titulo,data_evento:marco.data_evento,precisao_data:marco.precisao_data||"dia",categoria:marco.categoria||"outro",nota:marco.nota||null,reminder:marco.reminder||false,reminder_tom:marco.reminder_tom||null,criado_por:role});
+      return Array.isArray(rows)?rows[0]:rows;
+    }
+    await supa("POST","historia_marcos",{id:marco.id,casal_id,titulo:marco.titulo,data_evento:marco.data_evento,precisao_data:marco.precisao_data||"dia",categoria:marco.categoria||"outro",nota:marco.nota||null,reminder:marco.reminder||false,reminder_tom:marco.reminder_tom||null,atualizado_em:new Date().toISOString()},"on_conflict=id");
+    return marco;
+  }
+};
+
+/* ============ CONSTANTS ============ */
+const C={bg:"#F4F6F3",card:"#FFF",primary:"#2D4A3E",accent:"#5C8A6A",text:"#1A2820",muted:"#6B7F72",border:"#D8E4DC",tag:"#E8EFE9",green:"#4A7C59",red:"#B45151"};
+const GF="'Fraunces',serif",SF="'DM Sans',system-ui,sans-serif";
+const AREAS=[{id:"financas",label:"Finanças",icon:"💰"},{id:"filhos",label:"Educação dos Filhos",icon:"👨\u200d👩\u200d👧"},{id:"religiao",label:"Religião & Espiritualidade",icon:"🙏"},{id:"higiene",label:"Higiene & Casa",icon:"🏡"},{id:"aposentadoria",label:"Aposentadoria",icon:"🌅"},{id:"proj_vida",label:"Projetos Futuros",icon:"🚀"},{id:"viagens",label:"Viagens",icon:"✈️"},{id:"saude",label:"Saúde & Bem-estar",icon:"💚"},{id:"sexo",label:"Vida Sexual",icon:"💑"},{id:"redes",label:"Redes Sociais",icon:"📱"}];
+const ST={tacito:{label:"Tácito",color:"#b45309",desc:"Existe, mas nunca foi dito"},conflitante:{label:"Conflitante",color:"#c45f5f",desc:"Há desacordo aberto"},inexistente:{label:"Inexistente",color:"#9a9a9a",desc:"Nunca foi pensado"},expresso:{label:"Expresso ✓",color:"#047857",desc:"Claro e acordado pelos dois"}};
+const PHASES=[{id:"planejar",label:"Planejar",icon:"📋",color:"#5a7a9a"},{id:"desenvolver",label:"Desenvolver",icon:"⚡",color:"#5C8A6A"},{id:"acompanhar",label:"Acompanhar",icon:"📊",color:"#2D4A3E"},{id:"celebrar",label:"Celebrar",icon:"🎉",color:"#4A7C59"}];
+const FREQ=[{id:"unica",label:"Única"},{id:"diaria",label:"Diária"},{id:"semanal",label:"Semanal"},{id:"quinzenal",label:"Quinzenal"},{id:"mensal",label:"Mensal"},{id:"quando_ocorrer",label:"Quando ocorrer"}];
+const REV_OPC=[{label:"2 semanas",dias:14},{label:"1 mês",dias:30},{label:"3 meses",dias:90},{label:"6 meses",dias:180}];
+const CSTEPS=[{id:"compromissos",label:"Compromissos",num:1},{id:"sinal",label:"Sinal",num:2},{id:"revisao",label:"Revisão",num:3},{id:"planob",label:"Plano B",num:4}];
+const futureISO=(d)=>{const x=new Date();x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);};
+const fmtBR=(iso)=>{if(!iso)return"";const d=new Date(iso);return d.toLocaleDateString("pt-BR",{day:"numeric",month:"short",year:"numeric"});};
+const PQ=[{id:"what",label:"O Quê?",icon:"📌",ph:"Qual é o projeto?"},{id:"why",label:"Por Quê?",icon:"💡",ph:"Por que é importante?"},{id:"who",label:"Quem?",icon:"👥",ph:"Quem faz o quê?"},{id:"where",label:"Onde?",icon:"📍",ph:"Onde vai acontecer?"},{id:"when",label:"Quando?",icon:"📅",ph:"Qual o prazo?"},{id:"how",label:"Como?",icon:"⚙️",ph:"Quais os passos?"},{id:"howmuch",label:"Quanto?",icon:"💸",ph:"Orçamento?"}];
+const CNVSTEPS=[{id:"observo",label:"Observo",icon:"👁️",color:"#5a7a9a",explain:"Descreva o que aconteceu como uma câmera filmaria — apenas fatos concretos, sem julgamentos."},{id:"sinto",label:"Sinto",icon:"💛",color:"#b45309",hasDict:true,explain:"Nomeie a emoção real que você sente — tristeza, frustração, ansiedade. Evite pseudosentimentos."},{id:"necessito",label:"Necessito",icon:"🌱",color:"#2D4A3E",hasNeeds:true,explain:"Por trás de todo sentimento há uma necessidade. O que eu precisava?"},{id:"peco",label:"Peço",icon:"🤲",color:"#4A7C59",hasDisclaimer:true,explain:"Formule um pedido concreto, positivo e realizável. Um pedido genuíno pode receber 'não'; uma exigência, não."}];
+const FEEL={"Alegria":["feliz","alegre","animado","grato","satisfeito","esperançoso","encantado","tranquilo","empolgado","amoroso"],"Tristeza":["triste","decepcionado","magoado","melancólico","vazio","desamparado","angustiado","abatido"],"Raiva":["irritado","frustrado","indignado","impaciente","ressentido","zangado","ofendido","exasperado"],"Medo":["ansioso","preocupado","inseguro","apreensivo","tenso","nervoso","vulnerável","assustado"],"Desconforto":["sobrecarregado","cansado","confuso","envergonhado","esgotado","indiferente"],"Conexão":["conectado","próximo","acolhido","valorizado","respeitado","compreendido","visto","amado"]};
+const NEEDS={"Conexão":["amor","pertencimento","intimidade","compreensão","apoio","presença","cumplicidade"],"Segurança":["estabilidade","confiança","previsibilidade","proteção","clareza","cuidado"],"Crescimento":["aprendizado","significado","contribuição","propósito","desenvolvimento"],"Autonomia":["liberdade","escolha","espaço","respeito","independência"],"Vitalidade":["descanso","saúde","prazer","diversão","leveza","equilíbrio"],"Reconhecimento":["apreciação","ser visto","validação","consideração","gratidão"]};
+
+const SYS_CNV_REVIEW=`Analista de comunicação não-violenta. Você recebe os 4 campos CNV preenchidos por uma pessoa.
+
+REGRA ABSOLUTA: nunca invente, presuma ou adicione informações que não estejam nos campos. Trabalhe apenas com o que foi escrito.
+
+SE qualquer campo estiver vago, genérico ou sem contexto real suficiente para análise: retorne APENAS JSON {"precisa_contexto":true,"orientacao":"explicação acolhedora do que falta e por que ser mais específico ajuda","campos":["nomes dos campos que precisam de mais detalhe"]}
+
+SE todos os campos tiverem contexto suficiente: retorne APENAS JSON {"versao_original":"mensagem formatada com os 4 campos originais","versao_refinada":"versão melhorada mantendo estritamente o que foi escrito","explicacoes":["explicação da melhoria 1","melhoria 2","melhoria 3"],"ponto_forte":"aspecto positivo que a pessoa fez bem"}`;
+const SYS_EMOC=`Especialista em etimologia portuguesa e literatura clássica lusófona e brasileira. APENAS JSON sem markdown: {"etimologia":"origem histórica da palavra até o português atual, 2-3 frases acessíveis","significado":"definição deste sentimento como experiência humana, 2-3 frases","poesia":{"verso":"estrofe de 3-5 versos de poema clássico em português de domínio público (autor falecido há mais de 70 anos)","autor":"Nome completo","obra":"Título"}}`;
+const DEMO_EMOC={"ansioso":{etimologia:"Do latim 'anxiosus', de 'angere' (apertar, sufocar). A raiz revela sua natureza: um estreitamento interior diante da incerteza.",significado:"Estado de tensão diante de algo que ainda não aconteceu. A ansiedade habita o futuro — antecipa ameaças, reais ou imaginárias, antes que o perigo chegue.",poesia:{verso:"Não sei o que é amanhã,\nmas sei que o coração aperta\ncomo se a vida já soubesse\no que os olhos não viram.",autor:"Fernando Pessoa",obra:"Poemas de Álvaro de Campos"}},"magoado":{etimologia:"Do latim 'maculatus' (manchado). A mágoa carrega a ideia de uma marca — algo que tocou fundo o suficiente para deixar sinal.",significado:"Sentimento que surge quando algo valorizado — um vínculo, uma confiança — é ferido. Diferente da raiva, a mágoa olha para dentro: diz mais sobre o que nos importa.",poesia:{verso:"Mágoa que o tempo não apaga,\nsaudade que o bem não cura,\nbrasa que, tapada, braga,\nchama que, calada, dura.",autor:"Florbela Espanca",obra:"Livro de Mágoas"}},"frustrado":{etimologia:"Do latim 'frustratus', de 'frustrare' (privar de). Surgiu para descrever quem foi impedido de alcançar algo esperado.",significado:"Emoção que emerge quando um esforço encontra um obstáculo. A frustração é uma mensagem: havia uma necessidade real não atendida. Ela pede reconhecimento.",poesia:{verso:"Que importa que a flecha parta\nse o alvo se desvia e some?\nO arco tenso, a mão que aparta —\ne o vento que tudo consome.",autor:"Olavo Bilac",obra:"Via Láctea"}},"sozinho":{etimologia:"Do latim 'solus' (só). O sufixo '-inho' revela como a língua entende essa experiência: uma solidão vivida de dentro, íntima.",significado:"Experiência de ausência de conexão — que pode ocorrer mesmo em meio a outras pessoas. Ser sozinho é uma percepção interna sobre vínculo.",poesia:{verso:"Sozinho, no silêncio e no abandono,\nde mim para mim mesmo me pergunto\nque voz é esta do ser que sei que sou\nmas que, ao saber-me, eis que me confundo.",autor:"Fernando Pessoa",obra:"Poemas de Fernando Pessoa"}},"triste":{etimologia:"Do latim 'tristis' (sombrio). Presente nos primeiros textos medievais ibéricos, sempre associada à perda e ao peso interior.",significado:"Estado afetivo de baixa energia, ligado a uma perda real, simbólica ou antecipada. A tristeza pede acolhimento, não solução.",poesia:{verso:"Tenho saudade de mim mesmo,\ndo tempo em que era criança\ne não sabia que o mundo\npesava tanto numa esperança.",autor:"Manuel Bandeira",obra:"Libertinagem"}}};
+const DEMO_CNV_REVIEW={versao_original:"Observo: Você não respondeu minhas mensagens ontem.\n\nSinto: Me senti ignorado e ansioso.\n\nNecessito: Preciso de presença e comunicação.\n\nPeço: Você pode me avisar quando estiver ocupado?",versao_refinada:"Observo: Ontem enviei três mensagens e não recebi resposta até o final do dia.\n\nSinto: Fiquei ansioso e me senti sozinho naquele momento.\n\nNecessito: Comunicação — saber que estou na sua memória mesmo quando estamos separados.\n\nPeço: Quando estiver muito ocupado para responder, você consegue me enviar uma mensagem curta avisando? Isso me ajudaria muito.",explicacoes:["Na Observação: substituímos 'você não respondeu' (julgamento de intenção) por descrição factual — algo que o outro também pode reconhecer como verdadeiro.","No Sentimento: trocamos 'ignorado' (pseudosentimento que culpa) por 'ansioso' e 'sozinho' — emoções reais que não transferem responsabilidade.","No Pedido: tornamos a solicitação mais concreta e explicamos o porquê, criando empatia em vez de pressão."],ponto_forte:"Você formulou um pedido específico e realizável — um dos pontos mais difíceis de acertar na comunicação assertiva."};
+const CNV_DESC={observo:{curta:"Descreva apenas os fatos — como uma câmera filmaria.",longa:"Descreva o que aconteceu sem interpretar, avaliar ou generalizar. 'Você não lavou a louça hoje' é uma observação; 'você nunca faz nada em casa' é um julgamento. Palavras como sempre, nunca ou irresponsável contaminam essa etapa. O objetivo é criar uma base factual que o outro também consiga reconhecer como verdadeira."},sinto:{curta:"Nomeie a emoção real — evite palavras que culpam o outro.",longa:"'Me senti ignorado' parece sentimento, mas implica que o outro agiu com intenção. 'Me senti sozinho', 'fiquei ansioso', 'senti tristeza' são sentimentos reais. Use o Emocionário para explorar sua emoção com profundidade — etimologia, significado e versos de grandes poetas."},necessito:{curta:"Por trás de todo sentimento há uma necessidade. Qual é a sua?",longa:"Todo sentimento aponta para uma necessidade atendida ou não atendida. Quando você sente raiva, geralmente há necessidade de respeito ou justiça. Quando sente medo, pode ser necessidade de segurança. Nomear a necessidade — em vez de ficar no sentimento — é o que dá profundidade à conversa."},peco:{curta:"Formule um pedido concreto, presente e possível de cumprir agora.",longa:"'Quero que você me respeite mais' não é um pedido — é uma exigência vaga. 'Você pode me avisar por mensagem quando for se atrasar mais de meia hora?' é um pedido real. A distinção é o que acontece se o outro disser não: se você aceitar e negociar, era um pedido; se ficar com raiva, era uma exigência."}};
+const CNV_INTRO_KEY="dc_cnv_intro";
+const DIMS=[{id:"humor",label:"Humor",lo:"😔",hi:"😄"},{id:"abertura",label:"Abertura",lo:"🚪",hi:"🤗"},{id:"tensao",label:"Tensão",lo:"😌",hi:"😤"},{id:"conexao",label:"Conexão",lo:"🏝️",hi:"🤝"}];
+const MENU=[{id:"checkin",icon:"💓",title:"Check-in Relacional",desc:"Termômetro do clima da relação"},{id:"historia",icon:"📜",title:"Nossa História",desc:"A linha do tempo de vocês como casal"},{id:"cnv",icon:"💬",title:"Comunicação Assertiva",desc:"Fale com clareza, acolhimento e cuidado"},{id:"acordos",icon:"🤝",title:"Mapa de Acordos",desc:"Transforme acordos tácitos em acordos expressos"},{id:"projetos",icon:"🎯",title:"Projetos em Comum",desc:"Construam objetivos que exigem cooperação"},{id:"enredo",icon:"📖",title:"Meu Enredo",desc:"Auto-reflexão e autoconhecimento guiado"},{id:"leituras",icon:"📚",title:"Leituras",desc:"Conteúdo baseado em pesquisa para o casal"},{id:"historico",icon:"📋",title:"Histórico de Acordos",desc:"Todos os acordos registrados"}];
+const MCATS=[{id:"inicio",icon:"🌱",label:"Início"},{id:"compromisso",icon:"💍",label:"Compromisso"},{id:"lar",icon:"🏠",label:"Lar"},{id:"viagem",icon:"✈️",label:"Viagem"},{id:"familia",icon:"👶",label:"Família"},{id:"conquista",icon:"🏆",label:"Conquista"},{id:"superacao",icon:"💪",label:"Superação"},{id:"ritual",icon:"🎉",label:"Ritual"},{id:"outro",icon:"💛",label:"Outro"}];
+const SYS_REMINDER=`Você é o Guia do DesConflito. Nunca mencione metodologias pelo nome. Escreva uma mensagem curta, calorosa e pessoal. Máximo 4 frases. APENAS o texto da mensagem, sem explicações adicionais.`;
+const TE=[{id:"mente",label:"A Mente Humana",icon:"🧠",cor:"#5a7a9a",sub:"Como seu passado fala no seu presente",ap:["Sua mente opera em dois planos simultâneos — e entender isso muda tudo nas relações.","A mente analítica pensa, avalia, toma decisões. Ela tem o dom de esquecer o que não é necessário.","A mente reativa percebe, sente e jamais esquece. Ela registra cada experiência, especialmente as injúrias emocionais.","O problema surge quando as duas mentes não estão sincronizadas. Emoções não resolvidas contaminam as respostas do presente.","Nas relações afetivas isso aparece com frequência: você reage ao parceiro de hoje como se ele fosse alguém do passado."],perguntas:["Lembre de um momento em que você superou uma mágoa. O que tornou isso possível?","Quando você sentiu que estava reagindo de forma desproporcional? O que aconteceu antes?","Existe algo no comportamento do seu parceiro que te incomoda mais do que parece razoável? A que isso pode te remeter?","Traga uma imagem de alegria genuína da sua história. O que ela diz sobre o que é essencial para você?"]},{id:"medo",label:"Medos e Tensões",icon:"⚡",cor:"#b45309",sub:"O que ameaça sua segurança e como isso aparece na relação",ap:["O medo não precisa ter nome para agir. Muitas vezes ele opera como tensão de fundo.","A tensão surge sempre que algo ameaça aquilo que o indivíduo considera sua base de segurança.","Na maioria das vezes a ameaça percebida não é a ameaça real. A tensão responde a um padrão muito mais antigo.","Nas relações de casal, os medos não resolvidos criam ciclos: um parceiro recua por medo de rejeição, o outro interpreta o recuo como desinteresse.","Nomear o medo é o primeiro gesto de libertação."],perguntas:["O que mais teme perder na sua relação atual?","Em que situações você tende a recuar ou se fechar? O que está tentando proteger?","Que mensagens recebeu sobre relacionamentos na infância que ainda ecoam em você hoje?","Quando se sentiu mais seguro dentro de uma relação afetiva? O que criava essa segurança?"]},{id:"autentico",label:"Eu Autêntico",icon:"🌱",cor:"#4A7C59",sub:"A distância entre quem você deve ser e quem você é",ap:["Desde a infância, aprendemos a nos moldar às expectativas do ambiente.","Com o tempo, perdemos o contato com o eu que autenticamente somos.","Quanto maior essa distância, maior o custo energético de sustentá-la.","Nas relações de casal, o eu idealizado frequentemente gera conflito.","O caminho é distinguir o que é autenticamente seu do que foi introjetado pelo ambiente."],perguntas:["Que papel você acredita que deve desempenhar na sua relação? De onde vem essa crença?","O que você genuinamente deseja da sua relação, independente do que os outros esperam?","Em que momentos você age a partir do que realmente sente, sem filtro?","Há algo que você nunca se permitiu ser ou querer dentro da relação? Por quê?"]},{id:"causa",label:"Causa ou Efeito",icon:"🎯",cor:"#2D4A3E",sub:"Ser protagonista do seu enredo ou personagem da história dos outros",ap:["Existe uma distinção fundamental: você está sendo causa ou efeito na maioria das situações?","Ser efeito significa reagir ao humor do parceiro, às circunstâncias, às expectativas dos outros.","Ser causa não significa controlar tudo — significa escolher conscientemente como você responde.","Quando um parceiro assume consistentemente o papel de efeito, cria-se um desequilíbrio que corrói a relação.","Pequenas mudanças de posição têm impacto desproporcional."],perguntas:["Em que áreas da sua relação você se sente protagonista? Em quais você se sente mais à deriva?","Quando foi a última vez que tomou uma iniciativa genuína na relação, por escolha, não por obrigação?","Há algo que você espera que o parceiro mude, mas que você poderia começar a mudar primeiro?","Se você fosse mais causa do que efeito, o que seria diferente na prática?"]},{id:"enredo",label:"Meu Enredo de Vida",icon:"📖",cor:"#7c3aed",sub:"A história que você conta sobre si mesmo e como reescrevê-la",ap:["Cada pessoa carrega uma narrativa sobre si mesma — construída a partir das experiências vividas.","Essa narrativa raramente é examinada de frente. Ela opera como um roteiro silencioso.","Nas relações de casal, dois enredos se encontram e frequentemente colidem.","Quando esses roteiros são incompatíveis e permanecem inconscientes, surgem conflitos que parecem não ter solução racional.","Reescrever o enredo não significa apagar o passado. Significa escolher conscientemente o próximo capítulo."],perguntas:["Que história você costuma contar sobre si mesmo quando as coisas vão mal na relação?","Que conclusão você tirou sobre o amor a partir das suas experiências mais marcantes?","Se você fosse o autor consciente da sua relação daqui para frente, o que escreveria diferente?","Que qualidade sua você ainda não trouxe plenamente para a sua relação? O que impede?"]}];
+const LBASE=[{tema:"comunicacao",titulo:"Por que seu parceiro não está te ouvindo — e o que a ciência diz sobre isso"},{tema:"conflito",titulo:"O papel do silêncio nos conflitos de casal: proteção ou afastamento?"},{tema:"conexao",titulo:"Rituais de conexão: o que casais duradouros fazem diferente"},{tema:"sexualidade",titulo:"Desejo e vínculo emocional: a relação que muitos casais ignoram"},{tema:"financas",titulo:"Dinheiro e poder na relação: como os acordos financeiros afetam a intimidade"},{tema:"parentalidade",titulo:"Quando os filhos chegam: como preservar a relação de casal"},{tema:"autoconhecimento",titulo:"Apego e relacionamento: como sua história moldou sua forma de amar"},{tema:"comunicacao",titulo:"A diferença entre ouvir e escutar — e por que ela muda tudo"},{tema:"conflito",titulo:"Conflitos saudáveis: quando brigar bem fortalece o relacionamento"},{tema:"conexao",titulo:"Gratidão no casal: o hábito simples com impacto surpreendente"}];
+const LTEMAS=[{id:"comunicacao",label:"Comunicação",icon:"💬",cor:"#5a7a9a"},{id:"conflito",label:"Conflito",icon:"⚡",cor:"#b45309"},{id:"conexao",label:"Conexão",icon:"🤝",cor:"#4A7C59"},{id:"sexualidade",label:"Sexualidade",icon:"💑",cor:"#7c3aed"},{id:"financas",label:"Finanças",icon:"💰",cor:"#2D4A3E"},{id:"parentalidade",label:"Parentalidade",icon:"👨\u200d👩\u200d👧",cor:"#c4885f"},{id:"autoconhecimento",label:"Autoconhecimento",icon:"🧠",cor:"#4a7a62"}];
+
+/* ============ AI ============ */
+let API_KEY="";let DEMO_MODE=false;
+function getKey(){return API_KEY||window._dcApiKey||"";}
+const DEMO_INSIGHTS={conflitante:{reflexao:"Nomear este tema como conflitante já é um ato de honestidade que muitos casais evitam. O conflito aberto, mesmo desconfortável, é mais fértil que o silêncio acumulado.",perguntas:["O que exatamente nesta área te incomoda mais?","Se você soubesse que o outro está incomodado pelas mesmas razões diferentes, o que mudaria?"],sugestao_inicio:"Tem algo sobre este tema que está me pesando e queria tentar colocar em palavras."},tacito:{reflexao:"Acordos tácitos são contratos sem assinatura — e cada parte assume que entendeu as cláusulas do mesmo jeito.",perguntas:["Se você tivesse que colocar em uma frase o que acha que está combinado, o que diria?","Você já verificou se o outro entende este acordo da mesma forma?"],sugestao_inicio:"Percebi que a gente nunca falou diretamente sobre isso — queria checar se estamos alinhados."},inexistente:{reflexao:"Uma área inexistente não é uma área vazia — é uma área que ainda não recebeu linguagem entre vocês.",perguntas:["Por que acha que este tema nunca foi trazido para a conversa diretamente?","Se você fosse introduzir este assunto hoje, qual seria o maior risco?"],sugestao_inicio:"Existe um assunto que nunca trouxemos à tona e acho que precisamos começar a conversar."},expresso:{reflexao:"Ter um acordo expresso é raro e valioso. O que permitiu que vocês chegassem a esse ponto?",perguntas:["O que tornou possível construir clareza aqui?","Como manter e atualizar este acordo à medida que as circunstâncias mudam?"],sugestao_inicio:"Quero revisitar o que acordamos aqui para ver se ainda faz sentido para os dois."}};
+async function mockAi(sys,msg){await new Promise(r=>setTimeout(r,900));if(sys.includes("perspectiva")||sys.includes("INSIGHT")){const st=msg.includes("conflitante")?"conflitante":msg.includes("tacito")||msg.includes("tácito")?"tacito":msg.includes("inexistente")?"inexistente":"expresso";return DEMO_INSIGHTS[st]||DEMO_INSIGHTS.tacito;}if(sys.includes("COMPARE")||sys.includes("Área:")){return{analise:"Há uma diferença de percepção que é comum em casais: cada um tem um mapa diferente da mesma realidade. Isso não significa que alguém está errado.",perguntas:["O que cada um entende como 'combinado' nesta área?","Há alguma decisão recente que ficou sem conversa?","Qual seria um primeiro acordo concreto e pequeno que ambos conseguiriam honrar?"],sugestao:"Vamos definir juntos como vamos lidar com este tema. [Edite aqui o texto do acordo]"};}if(sys.includes("compromissos")){return{compromissos:[{id:"c1",desc:"Conversar sobre o tema uma vez por semana",dono:"ambos",frequencia:"semanal"},{id:"c2",desc:"Tomar decisões importantes juntos antes de agir",dono:"ambos",frequencia:"quando_ocorrer"}]};}if(sys.includes("CNV")){return"Observo: [descreva o fato]\n\nSinto: [nomeie a emoção]\n\nNecessito: [nomeie a necessidade]\n\nPeço: [pedido concreto e positivo]";}if(sys.includes("dicas")){return{dicas:["Definam juntos o que 'sucesso' significa para este projeto","Estabeleçam marcos intermediários para celebrar progresso","Combinem como vão lidar com desvios do plano original"]};}return{padrao:"Você demonstra uma tendência a assumir responsabilidade pelo bem-estar do outro antes de atender às próprias necessidades.",recurso:"Sua capacidade de observar padrões nas relações é um recurso valioso que já está disponível em você.",gesto:"Esta semana, antes de responder ao pedido do parceiro, pergunte-se: 'O que eu genuinamente preciso agora?'",frase_final:"Cuidar de si não é egoísmo — é a condição para que você possa estar presente de verdade com quem ama."};}
+async function mockText(sys,msg){await new Promise(r=>setTimeout(r,700));return"Observo: [fato concreto sem julgamento]\n\nSinto: [emoção nomeada]\n\nNecessito: [necessidade por trás do sentimento]\n\nPeço: [pedido concreto, positivo e realizável]";}
+const SYS_INSIGHT=`Terapeuta de casais. APENAS JSON: {"reflexao":"parágrafo reflexivo","perguntas":["pergunta 1","pergunta 2"],"sugestao_inicio":"frase para iniciar conversa"}. Nunca cite metodologias.`;
+const SYS_COMPARE=`Mediadora de casais. APENAS JSON: {"analise":"análise das perspectivas","perguntas":["pergunta 1","pergunta 2","pergunta 3"],"sugestao":"sugestão de texto de acordo editável"}. Nunca cite metodologias.`;
+const SYS_COMPROMISSOS=`Especialista em acordos. APENAS JSON: {"compromissos":[{"desc":"compromisso concreto","dono":"p1|p2|ambos","frequencia":"diaria|semanal|quinzenal|mensal|quando_ocorrer"}]}. Máximo 4.`;
+const SYS_CNV=`Coach de comunicação. Transforme em CNV: Observo / Sinto / Necessito / Peço. Responda em texto, não JSON.`;
+const SYS_DICAS=`Coach de projetos. APENAS JSON: {"dicas":["dica 1","dica 2","dica 3"]}.`;
+const SYS_SINTESE=`Guia de autoconhecimento. APENAS JSON: {"padrao":"parágrafo","recurso":"parágrafo","gesto":"sugestão concreta","frase_final":"frase inspiradora"}. Nunca cite metodologias.`;
+async function callApi(sys,msg,tok=1400){const key=getKey();if(!key)return null;try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-allow-browser":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:tok,system:sys,messages:[{role:"user",content:msg}]})});const d=await r.json();if(d.error)return null;return d.content[0].text;}catch(e){return null;}}
+async function ai(sys,msg,tok=1400){if(DEMO_MODE)return await mockAi(sys,msg);const t=await callApi(sys,msg,tok);if(!t)return{error:true};try{return JSON.parse(t.replace(/```json|```/g,"").trim());}catch(e){return{error:true,raw:t};}}
+async function aiText(sys,msg,tok=600){if(DEMO_MODE)return await mockText(sys,msg);return await callApi(sys,msg,tok)||"";}
+
+/* ============ ATOMS ============ */
+const Tag=({color,label})=><span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,background:color+"18",color,fontWeight:600}}>{label}</span>;
+const Btn=({children,onClick,disabled,color=C.accent,outline=false,sm=false,style={}})=><button onClick={onClick} disabled={disabled} style={{background:outline?"transparent":color,color:outline?C.primary:"#fff",border:outline?`1.5px solid ${C.border}`:"none",borderRadius:14,padding:sm?"7px 16px":"11px 20px",fontSize:sm?12:14,cursor:disabled?"not-allowed":"pointer",fontFamily:GF,opacity:disabled?.45:1,fontWeight:600,...style}}>{children}</button>;
+const TA=({value,onChange,ph,rows=4})=><textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={ph} rows={rows} style={{width:"100%",border:`1.5px solid ${C.border}`,borderRadius:14,padding:"11px 14px",fontSize:14,fontFamily:GF,background:"#FAFBF9",resize:"vertical",boxSizing:"border-box",color:C.text,lineHeight:1.7,outline:"none"}}/>;
+const In=({value,onChange,ph,type="text",style={}})=><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={ph} style={{width:"100%",border:`1.5px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:14,fontFamily:GF,background:"#FAFBF9",boxSizing:"border-box",color:C.text,outline:"none",...style}}/>;
+const Card=({children,style={}})=><div style={{background:C.card,borderRadius:20,padding:20,boxShadow:"0 1px 10px rgba(0,0,0,0.06)",marginBottom:12,...style}}>{children}</div>;
+const Wrap=({children})=><div style={{padding:"18px 16px 64px",maxWidth:560,margin:"0 auto"}}>{children}</div>;
+const Hdr=({title,sub,onBack,right})=><div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:10,boxShadow:"0 1px 8px rgba(0,0,0,0.04)"}}>{onBack&&<button onClick={onBack} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:C.primary,padding:0}}>‹</button>}<div style={{flex:1}}><div style={{fontWeight:700,fontSize:16,color:C.primary,fontFamily:GF}}>{title}</div>{sub&&<div style={{fontSize:11,color:C.muted,marginTop:1,fontFamily:SF}}>{sub}</div>}</div>{right}</div>;
+const Dots=()=>{const d={width:7,height:7,borderRadius:"50%",background:C.muted,display:"inline-block",margin:"0 2px"};return<div style={{display:"flex",alignItems:"center",gap:4,padding:"12px 16px",background:"#F7FAF6",borderRadius:"14px 14px 14px 4px",border:`1px solid ${C.border}`,width:"fit-content"}}><div className="d1" style={d}/><div className="d2" style={d}/><div className="d3" style={d}/></div>;};
+const Spinner=()=><div style={{width:36,height:36,border:"3px solid rgba(45,74,62,0.15)",borderTop:`3px solid ${C.primary}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>;
+function Banner({s}){const[t,setT]=useState("00:00");useEffect(()=>{if(!s?.startedAt)return;const i=setInterval(()=>{const sec=Math.floor((Date.now()-s.startedAt)/1000);setT(String(Math.floor(sec/60)).padStart(2,"0")+":"+String(sec%60).padStart(2,"0"));},1000);return()=>clearInterval(i);},[s]);if(!s||s.status!=="ativa")return null;return<div style={{background:"#E8F0EA",borderBottom:`1px solid ${C.accent}44`,padding:"8px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:7,height:7,borderRadius:"50%",background:C.accent,display:"inline-block",animation:"pulse 1.5s ease-in-out infinite"}}/><span style={{fontSize:12,color:C.primary,fontWeight:600,fontFamily:SF}}>Sessão em andamento</span></div><span style={{fontSize:12,color:C.muted,fontFamily:"monospace"}}>{t}</span></div>;}
+function PT({casal,active,set,isDemo}){if(!isDemo)return null;return<div style={{display:"flex",gap:8,marginBottom:16,background:C.card,borderRadius:14,padding:6,boxShadow:"0 1px 6px rgba(0,0,0,0.05)"}}>{["p1","p2"].map(p=><button key={p} onClick={()=>set(p)} style={{flex:1,padding:"9px 0",borderRadius:10,border:"none",background:active===p?C.primary:"transparent",color:active===p?"#fff":C.muted,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:GF}}>{casal[p]||p}</button>)}</div>;}
+
+/* ============ SPLASH / AUTH ============ */
+function SplashScreen({onSession}){
+  const[mode,setMode]=useState(null);
+  const[apiKey,setApiKey]=useState("");const[testing,setTesting]=useState(false);const[keyErr,setKeyErr]=useState("");const[keyOk,setKeyOk]=useState(false);
+  const[p1,setP1]=useState("");const[p2,setP2]=useState("");
+  const[codigo,setCodigo]=useState("");const[role,setRole]=useState("p2");
+  const[loading,setLoading]=useState(false);const[err,setErr]=useState("");
+  const[codigoGerado,setCodigoGerado]=useState("");const[sessGerado,setSessGerado]=useState(null);
+  const[copiado,setCopiado]=useState(false);const[copiadoConv,setCopiadoConv]=useState(false);
+  const enterDemo=()=>{DEMO_MODE=true;onSession({isDemo:true,role:"p1"});};
+  const testKey=async()=>{setTesting(true);setKeyErr("");try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey.trim(),"anthropic-version":"2023-06-01","anthropic-dangerous-allow-browser":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:10,messages:[{role:"user",content:"ok"}]})});const d=await r.json();if(d.error)setKeyErr("Chave inválida.");else{API_KEY=apiKey.trim();setKeyOk(true);}}catch(e){setKeyErr("Erro de conexão.");}setTesting(false);};
+  const enterReal=()=>{if(keyOk){DEMO_MODE=false;onSession({isDemo:true,role:"p1",hasKey:true});}};
+  const criar=async()=>{if(!p1.trim()){setErr("Informe seu nome.");return;}setLoading(true);setErr("");try{const casal=await db.criarCasal(p1.trim(),p2.trim()||null);const sess={casal_id:casal.id,codigo:casal.codigo,role:"p1",nome_p1:casal.nome_p1,nome_p2:casal.nome_p2||"",isDemo:false};setSess(sess);setCodigoGerado(casal.codigo);setSessGerado(sess);}catch(e){setErr("Erro: "+(e.message||"Falha na conexão com o servidor."));}setLoading(false);};
+  const entrar=async()=>{if(!codigo.trim()){setErr("Informe o código.");return;}setLoading(true);setErr("");try{const casal=await db.buscarCasal(codigo);const sess={casal_id:casal.id,codigo:casal.codigo,role,nome_p1:casal.nome_p1,nome_p2:casal.nome_p2||"",isDemo:false};setSess(sess);onSession(sess);}catch(e){setErr("Código não encontrado. "+(e.message||""));}setLoading(false);};
+  const bg="linear-gradient(160deg,#1A2820 0%,#2D4A3E 60%,#3D6B55 100%)";
+  const inp={width:"100%",padding:"12px 14px",borderRadius:12,border:"1.5px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.07)",color:"#fff",fontSize:14,outline:"none",fontFamily:SF,boxSizing:"border-box",marginBottom:8};
+  if(codigoGerado)return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
+    <div style={{fontSize:48,marginBottom:16}}>🎉</div>
+    <h2 style={{fontFamily:GF,color:"#fff",fontSize:24,marginBottom:8}}>Casal criado!</h2>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.6)",fontSize:14,marginBottom:24}}>Compartilhe este código com seu parceiro(a)</p>
+    <div style={{background:"rgba(255,255,255,0.1)",border:"2px solid rgba(142,196,161,0.5)",borderRadius:20,padding:"20px 40px",marginBottom:16}}>
+      <div style={{fontSize:34,letterSpacing:6,fontFamily:"monospace",color:"#8EC4A1",fontWeight:700}}>{codigoGerado}</div>
+    </div>
+    <p style={{fontFamily:SF,fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20,maxWidth:280}}>Para entrar em outro dispositivo: toque em "Entrar com código" e informe este código</p>
+    <div style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(142,196,161,0.3)",borderRadius:16,padding:"16px 20px",marginBottom:20,maxWidth:340,textAlign:"left"}}>
+      <p style={{fontFamily:SF,color:"rgba(255,255,255,0.5)",fontSize:11,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>💬 Convite pronto para enviar</p>
+      <p style={{fontFamily:SF,color:"rgba(255,255,255,0.8)",fontSize:13,lineHeight:1.65,margin:"0 0 14px"}}>{`Oi${p2.trim()?", "+p2.trim():""}! Te convidei para usar o Acordo Entre Nós comigo. Baixe o app, toque em "Entrar com código" e use: ${codigoGerado}\n\nVocê entrará como meu parceiro(a) — é só digitar o código. 💚`}</p>
+      <button onClick={()=>{navigator.clipboard.writeText(`Oi${p2.trim()?", "+p2.trim():""}! Te convidei para usar o Acordo Entre Nós comigo. Baixe o app, toque em "Entrar com código" e use: ${codigoGerado}\n\nVocê entrará como meu parceiro(a) — é só digitar o código. 💚`).catch(()=>{});setCopiadoConv(true);setTimeout(()=>setCopiadoConv(false),2500);}} style={{background:copiadoConv?"rgba(92,138,106,0.6)":"rgba(255,255,255,0.1)",border:"1px solid rgba(142,196,161,0.4)",borderRadius:10,padding:"8px 16px",color:copiadoConv?"#8EC4A1":"rgba(255,255,255,0.7)",fontSize:12,cursor:"pointer",fontFamily:SF,width:"100%"}}>{copiadoConv?"✓ Copiado!":"Copiar convite →"}</button>
+    </div>
+    <button onClick={()=>sessGerado&&onSession(sessGerado)} style={{background:"rgba(92,138,106,0.5)",border:"1.5px solid rgba(142,196,161,0.8)",borderRadius:50,padding:"13px 40px",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:GF}}>Entrar no app →</button>
+  </div>;
+  return<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",position:"relative"}}>
+    <div style={{position:"relative",zIndex:1,width:"100%",maxWidth:360,textAlign:"center"}}>
+      <div style={{fontFamily:GF,fontSize:13,letterSpacing:"0.25em",color:"rgba(255,255,255,0.5)",textTransform:"uppercase",marginBottom:16,fontStyle:"italic"}}>Acordo Entre Nós</div>
+      <h1 style={{fontFamily:GF,fontSize:38,fontWeight:300,color:"#fff",margin:"0 0 8px",lineHeight:1.15}}>Des<span style={{fontStyle:"italic",color:"#8EC4A1"}}>Conflito</span></h1>
+      <p style={{fontFamily:SF,fontSize:14,color:"rgba(255,255,255,0.55)",margin:"0 0 40px",lineHeight:1.6}}>Clareza, cuidado e acordo entre vocês.</p>
+      {!mode&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <button onClick={()=>setMode("criar")} style={{background:"rgba(92,138,106,0.35)",border:"1.5px solid rgba(142,196,161,0.6)",borderRadius:50,padding:"13px 0",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:GF}}>✨ Criar meu casal</button>
+        <button onClick={()=>setMode("entrar")} style={{background:"transparent",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:50,padding:"13px 0",color:"rgba(255,255,255,0.8)",fontSize:15,cursor:"pointer",fontFamily:GF}}>Entrar com código</button>
+        <button onClick={enterDemo} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.35)",fontSize:12,cursor:"pointer",fontFamily:SF,marginTop:8}}>Explorar sem cadastro</button>
+        <button onClick={()=>setMode("apikey")} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.18)",fontSize:11,cursor:"pointer",fontFamily:SF}}>Usar com chave Anthropic API →</button>
+      </div>}
+      {mode==="apikey"&&<div>
+        <p style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginBottom:10,fontFamily:SF}}>Cole sua chave da Anthropic API para ativar a IA real no modo exploração.</p>
+        {!keyOk?<div><input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-..." style={inp}/>{keyErr&&<p style={{color:"#f87171",fontSize:11,marginBottom:6}}>{keyErr}</p>}<button onClick={testKey} disabled={!apiKey.trim()||testing} style={{background:"transparent",border:"1px solid rgba(142,196,161,0.4)",borderRadius:10,padding:"8px 16px",color:"rgba(142,196,161,0.8)",fontSize:12,cursor:"pointer",fontFamily:GF}}>{testing?"...":"Verificar"}</button></div>:<div><p style={{color:"#86efac",fontSize:13,marginBottom:10,fontFamily:SF}}>✓ Chave verificada</p><button onClick={enterReal} style={{background:"rgba(92,138,106,0.35)",border:"1.5px solid rgba(142,196,161,0.8)",borderRadius:50,padding:"12px 36px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:GF}}>Entrar com IA real →</button></div>}
+        <br/><button onClick={()=>{setMode(null);setKeyErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",fontSize:11,cursor:"pointer",fontFamily:SF,marginTop:12}}>← voltar</button>
+      </div>}
+      {mode==="criar"&&<div>
+        <p style={{color:"rgba(255,255,255,0.6)",fontSize:13,marginBottom:16,fontFamily:SF}}>Crie o perfil do casal. Um código único será gerado para entrar em qualquer dispositivo.</p>
+        <input value={p1} onChange={e=>setP1(e.target.value)} placeholder="Seu nome" style={inp}/>
+        <input value={p2} onChange={e=>setP2(e.target.value)} placeholder="Nome do parceiro(a) — opcional" style={inp}/>
+        {err&&<p style={{color:"#f87171",fontSize:12,marginBottom:8}}>{err}</p>}
+        <button onClick={criar} disabled={loading||!p1.trim()} style={{background:"rgba(92,138,106,0.4)",border:"1.5px solid rgba(142,196,161,0.5)",borderRadius:50,padding:"13px 0",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:GF,width:"100%",marginBottom:8,opacity:(loading||!p1.trim())?0.45:1}}>{loading?"Criando...":"Criar casal →"}</button>
+        <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",fontSize:11,cursor:"pointer",fontFamily:SF}}>← voltar</button>
+      </div>}
+      {mode==="entrar"&&<div>
+        <p style={{color:"rgba(255,255,255,0.6)",fontSize:13,marginBottom:16,fontFamily:SF}}>Informe o código e como você participa.</p>
+        <input value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase())} placeholder="CÓDIGO DO CASAL" style={{...inp,textTransform:"uppercase",letterSpacing:3,textAlign:"center",fontSize:16}}/>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>{["p2","terapeuta"].map(r=><button key={r} onClick={()=>setRole(r)} style={{flex:1,padding:"10px 0",borderRadius:12,border:`1.5px solid ${role===r?"rgba(142,196,161,0.8)":"rgba(255,255,255,0.15)"}`,background:role===r?"rgba(92,138,106,0.3)":"transparent",color:"#fff",fontSize:13,cursor:"pointer",fontFamily:SF}}>{r==="p2"?"Sou o Parceiro(a)":"Sou Terapeuta"}</button>)}</div>
+        {err&&<p style={{color:"#f87171",fontSize:12,marginBottom:8}}>{err}</p>}
+        <button onClick={entrar} disabled={loading||!codigo.trim()} style={{background:"rgba(92,138,106,0.4)",border:"1.5px solid rgba(142,196,161,0.5)",borderRadius:50,padding:"13px 0",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:GF,width:"100%",marginBottom:8,opacity:(loading||!codigo.trim())?0.45:1}}>{loading?"Verificando...":"Entrar →"}</button>
+        <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",fontSize:11,cursor:"pointer",fontFamily:SF}}>← voltar</button>
+      </div>}
+    </div>
+    <div style={{position:"absolute",bottom:24,fontSize:10,color:"rgba(255,255,255,0.18)",fontFamily:SF,letterSpacing:"0.08em",textTransform:"uppercase"}}>v11 · Nossa História + Reminders + Integrações</div>
+  </div>;
+}
+
+/* ============ LOADING ============ */
+function LoadingScreen(){return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}><Spinner/><p style={{color:"rgba(255,255,255,0.5)",fontFamily:SF,fontSize:14}}>Carregando dados do casal...</p></div>;}
+
+/* ============ COMPROMISSO KEY ============ */
+const COMP_KEY=(id)=>"dc_comp_"+id;
+const compDone=(id)=>{try{return!!localStorage.getItem(COMP_KEY(id));}catch(e){return false;}};
+const setCompDone=(id)=>{try{localStorage.setItem(COMP_KEY(id),"1");}catch(e){}};
+
+/* ============ TERAPEUTA PIN ============ */
+const TPIN_KEY=(id)=>"dc_tpin_"+id;
+const getTPin=(id)=>{try{return localStorage.getItem(TPIN_KEY(id))||"";}catch(e){return "";}};
+const setTPin=(id,pin)=>{try{if(pin)localStorage.setItem(TPIN_KEY(id),pin);else localStorage.removeItem(TPIN_KEY(id));}catch(e){}};
+
+/* ============ COMPROMISSO ============ */
+function Compromisso({casal,myRole,isDemo,casalId,onDone}){
+const[fase,setFase]=useState("leitura");
+const[exp1,setExp1]=useState("");const[exp2,setExp2]=useState("");
+const[sig1,setSig1]=useState("");const[sig2,setSig2]=useState("");
+const nome1=casal.p1;const nome2=casal.p2;
+const podeAssinar=isDemo?(sig1.trim().length>1&&sig2.trim().length>1):(myRole==="p1"?sig1.trim().length>1:sig2.trim().length>1);
+const confirmar=()=>{if(casalId)setCompDone(casalId);onDone();};
+const inp2={width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.08)",color:"#fff",fontSize:14,outline:"none",fontFamily:SF,marginBottom:10,resize:"none"};
+
+if(fase==="leitura")return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+<div style={{maxWidth:380,width:"100%"}}>
+  <div style={{textAlign:"center",marginBottom:24}}><div style={{fontSize:36,marginBottom:10}}>🤝</div>
+    <h2 style={{fontFamily:GF,color:"#fff",fontSize:22,marginBottom:8}}>Nosso Compromisso</h2>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.55)",fontSize:13,lineHeight:1.6}}>Este espaço foi criado para que vocês possam se ver com mais clareza — cada um individualmente, e como casal. Não é terapia. Não vai resolver conflitos no lugar de vocês. O que ele pode fazer é criar estrutura onde havia caos, e oferecer linguagem onde havia silêncio.</p>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.55)",fontSize:13,lineHeight:1.6,marginTop:8,fontStyle:"italic"}}>Não há como algo novo acontecer na relação se algo novo não acontecer em você.</p>
+  </div>
+  <div style={{background:"rgba(255,255,255,0.06)",borderRadius:16,padding:"16px 18px",marginBottom:20}}>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.85)",fontSize:13,fontWeight:700,marginBottom:12}}>Ao usar este app, vocês se comprometem a:</p>
+    {["Usar este espaço com honestidade — mesmo quando for desconfortável.","Não transformar o que aprendem aqui em munição para discussões.","Dar ao processo o tempo que ele precisa.","Respeitar o espaço individual do outro — o que é privado, é privado.","Buscar entender antes de querer ser entendido."].map((t,i)=><div key={i} style={{display:"flex",gap:10,marginBottom:8}}><span style={{color:"#8EC4A1",fontSize:14,flexShrink:0}}>•</span><p style={{fontFamily:SF,color:"rgba(255,255,255,0.7)",fontSize:13,lineHeight:1.5,margin:0}}>{t}</p></div>)}
+    <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",marginTop:12,paddingTop:12}}>
+      <p style={{fontFamily:SF,color:"rgba(255,255,255,0.5)",fontSize:12,lineHeight:1.6,margin:0}}>Este app não substitui terapia de casal. Quando o nível de sofrimento ou conflito for alto, buscar ajuda profissional é a escolha mais inteligente.</p>
+    </div>
+  </div>
+  <button onClick={()=>setFase("assinar")} style={{background:"rgba(92,138,106,0.5)",border:"1.5px solid rgba(142,196,161,0.8)",borderRadius:50,padding:"13px 0",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:GF,width:"100%"}}>Li e concordo → Assinar</button>
+</div></div>;
+
+return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",overflowY:"auto",padding:24,display:"flex",flexDirection:"column",alignItems:"center"}}>
+<div style={{maxWidth:380,width:"100%",paddingTop:16}}>
+  <div style={{textAlign:"center",marginBottom:24}}>
+    <div style={{fontSize:32,marginBottom:8}}>✍️</div>
+    <h2 style={{fontFamily:GF,color:"#fff",fontSize:20,marginBottom:6}}>Assinatura Simbólica</h2>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.5)",fontSize:13}}>Ao assinar, cada um confirma que leu e aceita este compromisso de boa fé.</p>
+  </div>
+
+  {(isDemo||myRole==="p1")&&<div style={{background:"rgba(255,255,255,0.06)",borderRadius:14,padding:"14px 16px",marginBottom:14}}>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.8)",fontSize:13,fontWeight:700,marginBottom:10}}>{nome1} — O que você espera conquistar?</p>
+    <textarea value={exp1} onChange={e=>setExp1(e.target.value)} placeholder="Escreva com suas palavras — não há resposta certa." rows={3} style={inp2}/>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.6)",fontSize:12,marginBottom:6}}>Digite seu nome para assinar:</p>
+    <input value={sig1} onChange={e=>setSig1(e.target.value)} placeholder={nome1} style={{...inp2,marginBottom:0}}/>
+  </div>}
+
+  {(isDemo||myRole==="p2")&&<div style={{background:"rgba(255,255,255,0.06)",borderRadius:14,padding:"14px 16px",marginBottom:20}}>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.8)",fontSize:13,fontWeight:700,marginBottom:10}}>{nome2} — O que você espera conquistar?</p>
+    <textarea value={exp2} onChange={e=>setExp2(e.target.value)} placeholder="Escreva com suas palavras — não há resposta certa." rows={3} style={inp2}/>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.6)",fontSize:12,marginBottom:6}}>Digite seu nome para assinar:</p>
+    <input value={isDemo?sig2:(myRole==="p2"?sig2:"")} onChange={e=>isDemo?setSig2(e.target.value):setSig2(e.target.value)} placeholder={nome2} style={{...inp2,marginBottom:0}}/>
+  </div>}
+
+  <button onClick={confirmar} disabled={!podeAssinar} style={{background:podeAssinar?"rgba(92,138,106,0.6)":"rgba(92,138,106,0.2)",border:`1.5px solid ${podeAssinar?"rgba(142,196,161,0.8)":"rgba(142,196,161,0.2)"}`,borderRadius:50,padding:"13px 0",color:"#fff",fontSize:15,fontWeight:600,cursor:podeAssinar?"pointer":"not-allowed",fontFamily:GF,width:"100%",marginBottom:12,opacity:podeAssinar?1:0.6}}>Confirmar compromisso →</button>
+  <button onClick={()=>setFase("leitura")} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.3)",fontSize:12,cursor:"pointer",fontFamily:SF,width:"100%"}}>← Voltar</button>
+</div></div>;
+}
+
+/* ============ CONSENTIMENTO DADOS ============ */
+function ConsentimentoDados({casal,myRole,isDemo,casalId,onDone}){
+const[consPers,setConsPers]=useState(true);
+const[consMelh,setConsMelh]=useState(false);
+const[docAberto,setDocAberto]=useState(null);
+const salvar=()=>{try{localStorage.setItem("dc_cons_"+(casalId||"demo"),JSON.stringify({personalizacao:consPers,melhoria:consMelh,data:new Date().toISOString()}));}catch(e){}onDone();};
+
+if(docAberto){
+  const isPP=docAberto==="pp";
+  return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",overflowY:"auto",padding:"24px 20px"}}>
+    <div style={{maxWidth:420,margin:"0 auto"}}>
+      <button onClick={()=>setDocAberto(null)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",fontSize:13,cursor:"pointer",fontFamily:SF,marginBottom:20}}>← Voltar</button>
+      <h2 style={{fontFamily:GF,color:"#fff",fontSize:20,marginBottom:6}}>{isPP?"Política de Privacidade":"Termos de Consentimento"}</h2>
+      <p style={{fontFamily:SF,color:"rgba(255,255,255,0.4)",fontSize:12,marginBottom:20,fontStyle:"italic"}}>Versão 1.0 · Maio 2026 · MINUTA — sujeita a revisão jurídica antes da publicação</p>
+      {isPP?<>
+        <p style={{fontFamily:SF,color:"rgba(255,255,255,0.7)",fontSize:13,lineHeight:1.75,marginBottom:16}}>O DesConflito é operado por [Razão Social a inserir], doravante "DesConflito". Para fins da LGPD, somos o Controlador dos dados tratados neste aplicativo. Contato: privacidade@desconflito.com.br</p>
+        {[["Dados coletados","Nomes (podem ser apelidos), e-mail, check-ins diários (avaliações numéricas e notas opcionais), conteúdo do Mapa de Acordos, Comunicação Assertiva, Meu Enredo e interações com a IA. Não coletamos CPF, geolocalização, fotos ou dados financeiros."],
+          ["Finalidades","Prestação do serviço (base: execução de contrato, Art. 7°, V); personalização da IA (base: consentimento, Art. 7°, I); melhoria anônima do produto (base: consentimento, Art. 7°, I)."],
+          ["Compartilhamento","Dados são processados pela Supabase (armazenamento) e Anthropic (IA). Nenhum dado é vendido ou compartilhado com fins comerciais ou publicitários."],
+          ["Segurança","Transmissão via HTTPS. Armazenamento com controle de acesso por Row-Level Security. Nenhum administrador do DesConflito acessa o conteúdo das suas sessões."],
+          ["Retenção","Dados mantidos enquanto a conta estiver ativa + 30 dias após solicitação de exclusão. Logs técnicos: 90 dias."],
+          ["Seus direitos","Acesso, correção, exclusão, portabilidade e revogação do consentimento a qualquer momento. Solicitações: privacidade@desconflito.com.br (prazo: 15 dias úteis)."],
+        ].map(([t,d],i)=><div key={i} style={{marginBottom:14,borderLeft:"2px solid rgba(142,196,161,0.4)",paddingLeft:12}}><p style={{fontFamily:SF,color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:700,marginBottom:4}}>{t}</p><p style={{fontFamily:SF,color:"rgba(255,255,255,0.6)",fontSize:13,lineHeight:1.65,margin:0}}>{d}</p></div>)}
+      </>:<>
+        <p style={{fontFamily:SF,color:"rgba(255,255,255,0.7)",fontSize:13,lineHeight:1.75,marginBottom:16}}>Este documento regula dois consentimentos independentes. Cada um pode ser aceito ou recusado separadamente. Ambos podem ser revogados a qualquer momento em Dados e Privacidade.</p>
+        {[["Personalização da IA","Autoriza o uso do histórico do casal (check-ins, acordos, reflexões) para contextualizar as respostas da IA. Sem este consentimento, a IA funciona sem memória entre sessões. Dados transmitidos à Anthropic apenas para processamento — não usados para treinar modelos. Base: Art. 7°, I."],
+          ["Melhoria do produto","Autoriza uso de dados anonimizados e agregados (nunca textos livres ou dados identificáveis) para aprimorar funcionalidades e desenvolver conteúdo. Totalmente opcional — recusar não afeta nenhuma função. Base: Art. 7°, I."],
+          ["Exclusão individual","Cada parceiro pode solicitar exclusão dos dados individuais. Após confirmação, quarentena de 30 dias (cancelável). Dados compartilhados mantidos por mais 30 dias para não prejudicar o outro parceiro."],
+          ["Exclusão do casal","Requer confirmação dos dois parceiros. Após confirmação dupla, quarentena de 30 dias. Todos os dados excluídos permanentemente após o prazo."],
+          ["Exportação","Disponível a qualquer momento em Dados e Privacidade. Formato JSON. Processada em até 5 minutos."],
+        ].map(([t,d],i)=><div key={i} style={{marginBottom:14,borderLeft:"2px solid rgba(142,196,161,0.4)",paddingLeft:12}}><p style={{fontFamily:SF,color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:700,marginBottom:4}}>{t}</p><p style={{fontFamily:SF,color:"rgba(255,255,255,0.6)",fontSize:13,lineHeight:1.65,margin:0}}>{d}</p></div>)}
+      </>}
+    </div>
+  </div>;
+}
+
+return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",overflowY:"auto",padding:"24px 20px",display:"flex",flexDirection:"column",alignItems:"center"}}>
+<div style={{maxWidth:400,width:"100%",paddingTop:8}}>
+  <div style={{textAlign:"center",marginBottom:24}}><div style={{fontSize:32,marginBottom:8}}>🔐</div>
+    <h2 style={{fontFamily:GF,color:"#fff",fontSize:20,marginBottom:6}}>Proteção dos Seus Dados</h2>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.5)",fontSize:13,lineHeight:1.6}}>Explique como usamos seus dados. Você decide o que autoriza.</p>
+  </div>
+
+  {/* CONSENTIMENTO 1 — PERSONALIZAÇÃO */}
+  <div style={{background:"rgba(255,255,255,0.06)",borderRadius:14,padding:"14px 16px",marginBottom:12}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+      <div style={{flex:1}}>
+        <p style={{fontFamily:SF,color:"rgba(255,255,255,0.9)",fontSize:14,fontWeight:700,margin:"0 0 6px"}}>Personalização da IA</p>
+        <p style={{fontFamily:SF,color:"rgba(255,255,255,0.55)",fontSize:13,lineHeight:1.6,margin:0}}>A IA usa o histórico do casal (check-ins, acordos, reflexões) para oferecer respostas progressivamente mais contextualizadas. Sem isso, cada sessão começa do zero.</p>
+      </div>
+      <div onClick={()=>setConsPers(v=>!v)} style={{width:44,height:24,borderRadius:12,background:consPers?"#5C8A6A":"rgba(255,255,255,0.15)",cursor:"pointer",flexShrink:0,transition:"background .2s",position:"relative"}}>
+        <div style={{position:"absolute",top:3,left:consPers?22:3,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+      </div>
+    </div>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.3)",fontSize:11,margin:"8px 0 0",fontStyle:"italic"}}>Recomendado para a melhor experiência · Base legal: consentimento (LGPD Art. 7°, I)</p>
+  </div>
+
+  {/* CONSENTIMENTO 2 — MELHORIA */}
+  <div style={{background:"rgba(255,255,255,0.06)",borderRadius:14,padding:"14px 16px",marginBottom:12}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+      <div style={{flex:1}}>
+        <p style={{fontFamily:SF,color:"rgba(255,255,255,0.9)",fontSize:14,fontWeight:700,margin:"0 0 6px"}}>Contribuir para a melhoria do app</p>
+        <p style={{fontFamily:SF,color:"rgba(255,255,255,0.55)",fontSize:13,lineHeight:1.6,margin:0}}>Dados anonimizados e agregados (sem textos livres, sem identificação) usados para aprimorar funcionalidades e desenvolver conteúdo para todos os casais. Totalmente opcional.</p>
+      </div>
+      <div onClick={()=>setConsMelh(v=>!v)} style={{width:44,height:24,borderRadius:12,background:consMelh?"#5C8A6A":"rgba(255,255,255,0.15)",cursor:"pointer",flexShrink:0,transition:"background .2s",position:"relative"}}>
+        <div style={{position:"absolute",top:3,left:consMelh?22:3,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+      </div>
+    </div>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.3)",fontSize:11,margin:"8px 0 0",fontStyle:"italic"}}>Opcional · Base legal: consentimento (LGPD Art. 7°, I)</p>
+  </div>
+
+  {/* EXCLUSÃO */}
+  <div style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"12px 16px",marginBottom:20,borderLeft:"2px solid rgba(142,196,161,0.3)"}}>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.7)",fontSize:13,fontWeight:700,margin:"0 0 6px"}}>🗑 Exclusão de dados — seu direito</p>
+    <p style={{fontFamily:SF,color:"rgba(255,255,255,0.45)",fontSize:13,lineHeight:1.6,margin:0}}>Você e seu parceiro podem solicitar a exclusão dos dados a qualquer momento — individualmente ou em conjunto — em <span style={{color:"rgba(142,196,161,0.8)"}}>Dados e Privacidade</span> no menu do app. Após a solicitação, um período de 30 dias permite cancelamento antes da exclusão permanente.</p>
+  </div>
+
+  {/* LINKS DOCUMENTOS */}
+  <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+    <button onClick={()=>setDocAberto("pp")} style={{flex:1,padding:"8px 10px",borderRadius:10,border:"1px solid rgba(255,255,255,0.15)",background:"transparent",color:"rgba(255,255,255,0.5)",fontSize:12,cursor:"pointer",fontFamily:SF}}>Ler Política de Privacidade →</button>
+    <button onClick={()=>setDocAberto("tc")} style={{flex:1,padding:"8px 10px",borderRadius:10,border:"1px solid rgba(255,255,255,0.15)",background:"transparent",color:"rgba(255,255,255,0.5)",fontSize:12,cursor:"pointer",fontFamily:SF}}>Ler Termos de Consentimento →</button>
+  </div>
+
+  <button onClick={salvar} style={{background:"rgba(92,138,106,0.5)",border:"1.5px solid rgba(142,196,161,0.8)",borderRadius:50,padding:"13px 0",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:GF,width:"100%",marginBottom:10}}>Confirmar e entrar no app →</button>
+  <p style={{fontFamily:SF,color:"rgba(255,255,255,0.25)",fontSize:11,textAlign:"center",lineHeight:1.5}}>Você pode alterar suas preferências a qualquer momento em Dados e Privacidade. Consentimentos podem ser revogados sem custo.</p>
+</div></div>;
+}
+
+/* ============ ONBOARDING ============ */
+function Onboarding({casal,myRole,isDemo,casalId,onDone}){
+const[step,setStep]=useState(0);
+const[fase,setFase]=useState("intro"); // intro | compromisso | dados
+const steps=[{icon:"🤝",title:"Mapa de Acordos",desc:"Mapeiem juntos os acordos do casal — quais são tácitos, conflitantes, inexistentes ou expressos."},{icon:"💬",title:"Comunicação Assertiva",desc:"Aprendam a falar com clareza e cuidado usando a estrutura Observo-Sinto-Necessito-Peço."},{icon:"💓",title:"Check-in Relacional",desc:"Um termômetro diário do clima da relação. Dois minutos que podem mudar a semana de vocês."}];
+const s=steps[step];
+if(fase==="compromisso")return<Compromisso casal={casal} myRole={myRole} isDemo={isDemo} casalId={casalId} onDone={()=>setFase("dados")}/>;
+if(fase==="dados")return<ConsentimentoDados casal={casal} myRole={myRole} isDemo={isDemo} casalId={casalId} onDone={onDone}/>;
+return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}><div style={{maxWidth:340,width:"100%",textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>{s.icon}</div><h2 style={{fontFamily:GF,color:"#fff",fontSize:24,marginBottom:12}}>{s.title}</h2><p style={{fontFamily:SF,color:"rgba(255,255,255,0.6)",fontSize:15,lineHeight:1.7,marginBottom:32}}>{s.desc}</p><div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:32}}>{steps.map((_,i)=><div key={i} style={{width:i===step?24:8,height:8,borderRadius:4,background:i===step?"#8EC4A1":"rgba(255,255,255,0.2)",transition:"width .3s"}}/>)}</div>{step<steps.length-1?<button onClick={()=>setStep(s=>s+1)} style={{background:"rgba(92,138,106,0.4)",border:"1.5px solid rgba(142,196,161,0.5)",borderRadius:50,padding:"13px 40px",color:"#fff",fontSize:15,cursor:"pointer",fontFamily:GF}}>Próximo →</button>:<button onClick={()=>setFase("compromisso")} style={{background:"rgba(92,138,106,0.5)",border:"1.5px solid rgba(142,196,161,0.8)",borderRadius:50,padding:"13px 40px",color:"#fff",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:GF}}>Próximo →</button>}</div></div>;
+}
+
+/* ============ HOME ============ */
+function Home({casal,active,setActive,go,acordos,sessao,isDemo,role,onSync,syncTime,terapeutaPin,sessId,marcos,onReminderCNV,onCreateMarco}){const myRole=isDemo?active:role;const expresso=Object.values(acordos).filter(a=>a.expresso||a.acordo?.texto).length;const pendentes=Object.values(acordos).filter(a=>!a.expresso&&(a.p1||a.p2)).length;
+const[showTConf,setShowTConf]=useState(false);const[newTPin,setNewTPin]=useState("");const[tPinSalvo,setTPinSalvo]=useState(false);
+const[loadingReminder,setLoadingReminder]=useState({});const[reminderMsg,setReminderMsg]=useState({});
+const d0=new Date();const todayMD=(d0.getMonth()+1).toString().padStart(2,"0")+"-"+d0.getDate().toString().padStart(2,"0");
+const reminders=(marcos||[]).filter(m=>m.reminder&&m.data_evento&&m.data_evento.slice(5)===todayMD);
+const gerarMsgReminder=async(m)=>{
+  setLoadingReminder(p=>({...p,[m.id]:true}));
+  const nomeParceiro=myRole==="p1"?casal.p2:casal.p1;const meuNome=casal[myRole]||"você";
+  const prompt=`Hoje é o aniversário de um marco importante para este casal: ${m.titulo}.\n${m.nota?`Contexto: ${m.nota}\n`:""}\nEscreva uma mensagem curta, calorosa e pessoal que ${meuNome} poderia enviar para ${nomeParceiro} nessa data.\nTom: ${m.reminder_tom||"carinhoso"}.`;
+  const resp=await ai(SYS_REMINDER,prompt,300);
+  const txt=typeof resp==="string"?resp:(resp?.mensagem||resp?.texto||JSON.stringify(resp));
+  setReminderMsg(p=>({...p,[m.id]:txt}));setLoadingReminder(p=>({...p,[m.id]:false}));
+};
+const abrirComunicadorReminder=(m,msg)=>{onReminderCNV({campo:"observo",texto:`[Aniversário: ${m.titulo}]\n\n${msg}`});};
+const salvarTPin=()=>{if(sessId&&newTPin.trim().length>=4){setTPin(sessId,newTPin.trim());setTPinSalvo(true);setNewTPin("");setTimeout(()=>{setTPinSalvo(false);setShowTConf(false);},2000);}};
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Banner s={sessao}/>
+<div style={{background:`linear-gradient(135deg,${C.primary},${C.accent})`,padding:"28px 20px 24px"}}><div style={{maxWidth:560,margin:"0 auto"}}>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+<div><p style={{color:"rgba(255,255,255,0.6)",fontSize:12,margin:"0 0 4px",fontFamily:SF,textTransform:"uppercase",letterSpacing:1}}>Olá,</p><h2 style={{color:"#fff",fontSize:26,margin:0,fontWeight:400}}>{casal[myRole]||"Parceiro(a)"}</h2></div>
+<button onClick={onSync} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:10,padding:"8px 12px",color:"rgba(255,255,255,0.7)",fontSize:11,cursor:"pointer",fontFamily:SF}}>↻ {syncTime||"Sync"}</button>
+</div>
+{(expresso>0||pendentes>0)&&<div style={{display:"flex",gap:12,marginTop:16}}>{expresso>0&&<div style={{background:"rgba(255,255,255,0.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}><div style={{fontSize:20,color:"#fff",fontWeight:700}}>{expresso}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontFamily:SF}}>acordos expressos</div></div>}{pendentes>0&&<div style={{background:"rgba(255,255,255,0.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}><div style={{fontSize:20,color:"#fff",fontWeight:700}}>{pendentes}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontFamily:SF}}>em andamento</div></div>}</div>}
+</div></div>
+<Wrap>
+{reminders.map(m=>{const cat=MCATS.find(c=>c.id===m.categoria)||MCATS[MCATS.length-1];const anos=new Date().getFullYear()-new Date(m.data_evento).getFullYear();return<div key={m.id} className="fu" style={{background:"linear-gradient(135deg,#fef3c7,#fde68a44)",borderRadius:18,padding:"16px",marginBottom:10,boxShadow:"0 2px 12px rgba(180,131,0,0.12)",border:"1px solid #fbbf2466"}}><div style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:10}}><div style={{fontSize:26,flexShrink:0}}>{cat.icon}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:"#78350f",marginBottom:2}}>🎉 {anos>0?`${anos} ano${anos>1?"s":""} — `:"Hoje — "}{m.titulo}</div>{m.nota&&<div style={{fontSize:12,color:"#92400e",fontFamily:SF,fontStyle:"italic",lineHeight:1.5}}>{m.nota}</div>}</div></div>{!reminderMsg[m.id]?<div style={{display:"flex",gap:8}}><button onClick={()=>gerarMsgReminder(m)} disabled={loadingReminder[m.id]} style={{flex:1,background:"#b45309",border:"none",borderRadius:12,padding:"9px 0",color:"#fff",fontSize:13,cursor:loadingReminder[m.id]?"not-allowed":"pointer",fontFamily:GF,opacity:loadingReminder[m.id]?.6:1}}>{loadingReminder[m.id]?"Gerando...":"✨ Criar mensagem"}</button><button onClick={()=>go("historia")} style={{padding:"9px 14px",borderRadius:12,border:"1.5px solid #b45309",background:"transparent",color:"#b45309",fontSize:13,cursor:"pointer",fontFamily:SF}}>📜 Ver</button></div>:<div><div style={{background:"rgba(255,255,255,0.75)",borderRadius:12,padding:"10px 12px",fontSize:14,color:"#1A2820",lineHeight:1.7,fontStyle:"italic",marginBottom:10}}>"{reminderMsg[m.id]}"</div><div style={{display:"flex",gap:8}}><button onClick={()=>abrirComunicadorReminder(m,reminderMsg[m.id])} style={{flex:1,background:"#b45309",border:"none",borderRadius:12,padding:"9px 0",color:"#fff",fontSize:13,cursor:"pointer",fontFamily:GF}}>Enviar no Comunicador →</button><button onClick={()=>gerarMsgReminder(m)} style={{padding:"9px 12px",borderRadius:12,border:"1.5px solid #b45309",background:"transparent",color:"#b45309",fontSize:13,cursor:"pointer",fontFamily:SF}}>↻</button></div></div>}</div>;})}
+{MENU.map(m=><div key={m.id} onClick={()=>go(m.id)} style={{background:C.card,borderRadius:18,padding:"14px 16px",marginBottom:10,boxShadow:"0 1px 8px rgba(0,0,0,0.05)",cursor:"pointer",display:"flex",alignItems:"center",gap:14}}><div style={{width:46,height:46,borderRadius:14,background:C.tag,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{m.icon}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:C.text}}>{m.title}</div><div style={{fontSize:12,color:C.muted,marginTop:2,fontFamily:SF}}>{m.desc}</div></div><div style={{color:C.accent,fontSize:18,opacity:.5}}>›</div></div>)}
+{!isDemo&&role==="p1"&&<div style={{background:C.card,borderRadius:18,padding:"14px 16px",marginBottom:10,boxShadow:"0 1px 8px rgba(0,0,0,0.05)"}}>
+  <div onClick={()=>setShowTConf(v=>!v)} style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+    <div style={{width:46,height:46,borderRadius:14,background:C.tag,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🩺</div>
+    <div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:C.text}}>Acesso do Terapeuta</div><div style={{fontSize:12,color:C.muted,marginTop:2,fontFamily:SF}}>{terapeutaPin?"PIN configurado ✓":"Sem PIN definido"}</div></div>
+    <div style={{color:C.accent,fontSize:18,opacity:.5}}>{showTConf?"∨":"›"}</div>
+  </div>
+  {showTConf&&<div style={{marginTop:14,borderTop:`1px solid ${C.border}`,paddingTop:14}}>
+    {terapeutaPin&&<div style={{background:C.tag,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:SF,fontSize:12,color:C.muted}}>PIN atual: <b style={{color:C.primary,letterSpacing:3}}>{terapeutaPin}</b></span><button onClick={()=>{if(sessId)setTPin(sessId,"");setNewTPin("");}} style={{background:"transparent",border:"none",color:C.red,fontSize:11,cursor:"pointer",fontFamily:SF}}>Revogar</button></div>}
+    <p style={{fontFamily:SF,fontSize:12,color:C.muted,marginBottom:8}}>{terapeutaPin?"Novo PIN (4 a 6 dígitos):":"Defina um PIN para o terapeuta (4 a 6 dígitos):"}</p>
+    <div style={{display:"flex",gap:8}}><input type="password" value={newTPin} onChange={e=>setNewTPin(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="••••" maxLength={6} style={{flex:1,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"9px 14px",fontSize:18,textAlign:"center",letterSpacing:6,fontFamily:"monospace",background:"#FAFBF9",outline:"none"}}/><button onClick={salvarTPin} disabled={newTPin.trim().length<4} style={{background:C.accent,border:"none",borderRadius:12,padding:"9px 18px",color:"#fff",fontSize:13,cursor:newTPin.trim().length<4?"not-allowed":"pointer",fontFamily:GF,opacity:newTPin.trim().length<4?0.45:1}}>{tPinSalvo?"✓ Salvo":"Salvar"}</button></div>
+    <p style={{fontFamily:SF,fontSize:11,color:C.muted,marginTop:8}}>Compartilhe o código do casal + este PIN com o terapeuta.</p>
+  </div>}
+</div>}
+{!isDemo&&<div style={{textAlign:"center",marginTop:8}}><button onClick={()=>{clearSess();window.location.reload();}} style={{background:"transparent",border:"none",color:C.muted,fontSize:11,cursor:"pointer",fontFamily:SF,textDecoration:"underline"}}>Sair / trocar de casal</button></div>}
+</Wrap></div>;}
+
+/* ============ ACORDOS ============ */
+function Acordos({casal,active,setActive,go,acordos,setAcordos,sessao,isDemo,role,onSaveAcordo,customAreas,setCustomAreas}){
+const[view,setView]=useState("list");const[detail,setDetail]=useState(null);const[pData,setPData]=useState({status:"",contexto:""});const[pStep,setPStep]=useState("status");const[insight,setInsight]=useState(null);const[loadInsight,setLoadInsight]=useState(false);const[iaData,setIaData]=useState(null);const[loading,setLoading]=useState(false);const[aTxt,setATxt]=useState("");const[cs,setCs]=useState("compromissos");const[cData,setCData]=useState({compromissos:[],indicador:"",revisaoEm:futureISO(30),planoB:"",lembrete:true});const[loadDeriv,setLoadDeriv]=useState(false);const[addArea,setAddArea]=useState(false);const[nL,setNL]=useState("");const[nI,setNI]=useState("💬");
+const all=[...(customAreas||[]),...AREAS];
+const myRole=isDemo?active:role;const other=myRole==="p1"?"p2":"p1";
+const getA=id=>acordos[id]||{};
+const both=id=>{const a=getA(id);return a.p1?.status&&a.p2?.status;};
+const saveAndPersist=(areaId,newData)=>{setAcordos(p=>({...p,[areaId]:newData}));onSaveAcordo(areaId,newData);};
+const saveMe=()=>{const a=getA(detail.id);const newArea={...a,[myRole]:{status:pData.status,contexto:pData.contexto}};saveAndPersist(detail.id,newArea);setPStep("done");};
+const gerarInsight=async()=>{setLoadInsight(true);const sv=ST[pData.status];const d=await ai(SYS_INSIGHT,`Área: ${detail.label}\nStatus: ${sv?.label} — ${sv?.desc}\nContexto: ${pData.contexto||"sem contexto"}`);setInsight(d);setLoadInsight(false);};
+const compare=async()=>{setLoading(true);const a=getA(detail.id);const d=await ai(SYS_COMPARE,`Área: ${detail.label}\n${casal.p1}: ${ST[a.p1.status]?.label}, contexto: ${a.p1.contexto||"—"}\n${casal.p2}: ${ST[a.p2.status]?.label}, contexto: ${a.p2.contexto||"—"}`);setIaData(d);setATxt(d.sugestao||"");setLoading(false);setView("compare");};
+const addC=()=>{if(!nL.trim())return;setCustomAreas(p=>[...p,{id:"c_"+Date.now(),label:nL.trim(),icon:nI}]);setNL("");setNI("💬");setAddArea(false);};
+const entrarConsole=async()=>{const ex=getA(detail.id).acordo;if(ex){setCData({compromissos:ex.compromissos||[],indicador:ex.indicador||"",revisaoEm:ex.revisaoEm||futureISO(30),planoB:ex.planoB||"",lembrete:ex.lembrete!==false});setCs("compromissos");setView("console");return;}setView("console");setCs("compromissos");setLoadDeriv(true);const r=await ai(SYS_COMPROMISSOS,`Casal: ${casal.p1} e ${casal.p2}\nÁrea: ${detail.label}\nAcordo: ${aTxt}`,800);const cs2=(r&&!r.error&&Array.isArray(r.compromissos))?r.compromissos.map((c,i)=>({id:"c"+Date.now()+"_"+i,desc:c.desc||"",dono:c.dono||"ambos",frequencia:c.frequencia||"semanal",criadoEm:new Date().toISOString()})):[];setCData(d=>({...d,compromissos:cs2}));setLoadDeriv(false);};
+const updCompr=(idx,patch)=>setCData(d=>({...d,compromissos:d.compromissos.map((c,i)=>i===idx?{...c,...patch}:c)}));
+const addCompr=()=>setCData(d=>({...d,compromissos:[...d.compromissos,{id:"c"+Date.now(),desc:"",dono:"ambos",frequencia:"semanal",criadoEm:new Date().toISOString()}]}));
+const delCompr=idx=>setCData(d=>({...d,compromissos:d.compromissos.filter((_,i)=>i!==idx)}));
+const salvarAcordo=()=>{const ex=getA(detail.id).acordo;const versao=(ex?.versao||0)+1;const historico=ex?[...(ex.historico||[]),{versao:ex.versao,texto:ex.texto,arquivadoEm:new Date().toISOString()}]:[];const novoAcordo={texto:aTxt,compromissos:cData.compromissos.filter(c=>c.desc.trim()),indicador:cData.indicador,revisaoEm:cData.revisaoEm,planoB:cData.planoB,lembrete:cData.lembrete,versao,historico,criadoEm:ex?.criadoEm||new Date().toISOString(),atualizadoEm:new Date().toISOString()};const newArea={...getA(detail.id),acordo:novoAcordo,expresso:aTxt,savedAt:new Date().toISOString()};saveAndPersist(detail.id,newArea);setView("list");setDetail(null);};
+const Stepper=()=><div style={{display:"flex",alignItems:"center",gap:6,padding:14,background:C.card,borderRadius:18,marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.05)"}}>{CSTEPS.map((s,i)=>{const idx=CSTEPS.findIndex(x=>x.id===cs);const done=i<idx,act=i===idx;return<React.Fragment key={s.id}><div onClick={()=>i<=idx&&setCs(s.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:i<=idx?"pointer":"default"}}><div style={{width:26,height:26,borderRadius:"50%",background:done?C.accent:act?C.primary:C.border,color:done||act?"#fff":C.muted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{done?"✓":s.num}</div><div style={{fontSize:9,color:done||act?C.primary:C.muted,fontFamily:SF,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",textAlign:"center"}}>{s.label}</div></div>{i<CSTEPS.length-1&&<div style={{flex:"0 0 12px",height:1.5,background:done?C.accent:C.border,marginTop:-22}}/>}</React.Fragment>;})}></div>;
+if(view==="setup"&&detail){const a=getA(detail.id);return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title={detail.icon+" "+detail.label} sub={"Perspectiva de "+casal[myRole]} onBack={()=>{setView("list");setDetail(null);}}/><Banner s={sessao}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={p=>{setActive(p);const d2=(getA(detail.id))[p]||{};setPData({status:d2.status||"",contexto:d2.contexto||""});setPStep(d2.status?"done":"status");}} isDemo={isDemo}/>}
+{pStep==="status"&&<Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Como {casal[myRole]} vê este acordo?</p>{Object.entries(ST).map(([k,v])=><div key={k} onClick={()=>setPData(d=>({...d,status:k}))} style={{border:`1.5px solid ${pData.status===k?v.color:v.color+"33"}`,borderRadius:14,padding:"11px 14px",marginBottom:8,cursor:"pointer",background:pData.status===k?v.color+"12":"transparent"}}><div style={{fontWeight:700,color:v.color}}>{v.label}</div><div style={{fontSize:12,color:C.muted,marginTop:2,fontFamily:SF}}>{v.desc}</div></div>)}{pData.status&&<div><p style={{fontWeight:700,margin:"16px 0 8px"}}>Contexto (opcional)</p><TA value={pData.contexto} onChange={v=>setPData(d=>({...d,contexto:v}))} rows={3} ph="Descreva brevemente sua visão..."/><Btn onClick={saveMe} style={{width:"100%",marginTop:12}}>Salvar perspectiva →</Btn></div>}</Card>}
+{pStep==="done"&&a[myRole]?.status&&<Card><p style={{fontWeight:700,color:C.accent,marginTop:0}}>Perspectiva de {casal[myRole]} salva ✓</p><div style={{borderLeft:`3px solid ${ST[a[myRole].status]?.color||C.border}`,paddingLeft:12,marginBottom:12}}><Tag color={ST[a[myRole].status]?.color||C.muted} label={ST[a[myRole].status]?.label||"—"}/>{a[myRole].contexto&&<p style={{fontSize:13,color:C.muted,margin:"6px 0 0",fontFamily:SF}}>{a[myRole].contexto}</p>}</div><Btn outline onClick={()=>setPStep("status")} style={{width:"100%",marginBottom:10}}>Editar perspectiva</Btn>{!insight&&<Btn onClick={gerarInsight} disabled={loadInsight} color={"#5a7a9a"} style={{width:"100%",marginBottom:10}}>{loadInsight?"Analisando...":"🌿 Analisar minha perspectiva"}</Btn>}{loadInsight&&<div style={{display:"flex",justifyContent:"center",padding:"12px 0"}}><Dots/></div>}{insight&&!insight.error&&<div className="fu" style={{marginBottom:14}}><div style={{background:"#edf5ef",borderRadius:14,padding:"14px 16px",marginBottom:10}}><div style={{fontSize:11,fontWeight:600,color:C.accent,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8,fontFamily:SF}}>Reflexão</div><p style={{fontSize:14,lineHeight:1.8,margin:0}}>{insight.reflexao}</p></div>{insight.perguntas&&<div style={{marginBottom:10}}>{insight.perguntas.map((q,i)=><div key={i} style={{borderLeft:`3px solid ${C.accent}`,paddingLeft:12,marginBottom:8,fontSize:13,lineHeight:1.6}}>{q}</div>)}</div>}{insight.sugestao_inicio&&<div style={{background:C.primary+"0d",borderRadius:12,padding:"12px 14px",fontSize:13,fontStyle:"italic",color:C.primary}}>Para começar: "{insight.sugestao_inicio}"</div>}</div>}
+{both(detail.id)?<Btn onClick={compare} disabled={loading} style={{width:"100%"}}>{loading?"Analisando...":"Comparar perspectivas dos dois →"}</Btn>:<div style={{background:"#edf5ef",borderRadius:14,padding:14,textAlign:"center",marginTop:8}}><p style={{margin:0,fontSize:13,color:C.muted,fontFamily:SF}}>Aguardando {casal[other]} registrar a perspectiva{isDemo?".":` no dispositivo de ${casal[other]}.`}</p>{isDemo&&<Btn sm outline onClick={()=>setActive(other)} style={{marginTop:10}}>Passar para {casal[other]} →</Btn>}</div>}</Card>}
+</Wrap></div>;}
+if(view==="compare"&&detail){const a=getA(detail.id);return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title={detail.icon+" "+detail.label} sub="Visão conjunta" onBack={()=>setView("setup")}/><Banner s={sessao}/><Wrap><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>{["p1","p2"].map(p=>{const d=a[p];if(!d)return null;const sv=ST[d.status];return<Card key={p} style={{padding:14,marginBottom:0}}><div style={{fontWeight:700,fontSize:13,marginBottom:6}}>👤 {casal[p]}</div><Tag color={sv.color} label={sv.label}/>{d.contexto&&<p style={{fontSize:12,color:C.muted,margin:"8px 0 0",fontFamily:SF}}>{d.contexto}</p>}</Card>;})}
+</div>{iaData&&!iaData.error&&<div><Card><p style={{fontWeight:700,color:C.primary,marginTop:0}}>Análise</p><p style={{fontSize:14,lineHeight:1.75,margin:0}}>{iaData.analise}</p></Card><Card><p style={{fontWeight:700,color:C.primary,marginTop:0}}>Para conversar juntos</p>{iaData.perguntas?.map((q,i)=><div key={i} style={{borderLeft:`3px solid ${C.accent}`,paddingLeft:12,marginBottom:10,fontSize:14,lineHeight:1.5}}>{q}</div>)}</Card><Card><p style={{fontWeight:700,color:C.primary,marginTop:0}}>Sugestão de acordo</p><TA value={aTxt} onChange={setATxt} rows={5}/><Btn onClick={entrarConsole} style={{width:"100%",marginTop:12}}>Refinar como acordo executável →</Btn><p style={{fontSize:11,color:C.muted,textAlign:"center",margin:"8px 0 0",fontFamily:SF}}>4 etapas: compromissos · sinal · revisão · plano B</p></Card></div>}</Wrap></div>;}
+if(view==="console"&&detail)return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="Console do Acordo" sub={detail.icon+" "+detail.label} onBack={()=>setView("compare")}/><Banner s={sessao}/><Wrap><Stepper/>
+{cs==="compromissos"&&<Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Compromissos concretos</p><p style={{fontSize:13,color:C.muted,marginBottom:12,fontFamily:SF}}>O que cada um vai fazer, com que frequência?</p>{loadDeriv?<div style={{display:"flex",justifyContent:"center",padding:20}}><Dots/></div>:<div>{cData.compromissos.map((c,i)=><div key={c.id} style={{border:`1.5px solid ${C.border}`,borderRadius:14,padding:12,marginBottom:10}}><In value={c.desc} onChange={v=>updCompr(i,{desc:v})} ph="Descreva o compromisso..."/><div style={{display:"flex",gap:8,marginTop:8}}><select value={c.dono} onChange={e=>updCompr(i,{dono:e.target.value})} style={{flex:1,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px",fontSize:12,background:"#FAFBF9",color:C.text}}><option value="p1">{casal.p1}</option><option value="p2">{casal.p2}</option><option value="ambos">Ambos</option></select><select value={c.frequencia} onChange={e=>updCompr(i,{frequencia:e.target.value})} style={{flex:1,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px",fontSize:12,background:"#FAFBF9",color:C.text}}>{FREQ.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select><button onClick={()=>delCompr(i)} style={{background:"transparent",border:"none",color:C.red,fontSize:18,cursor:"pointer"}}>×</button></div></div>)}<Btn outline sm onClick={addCompr} style={{width:"100%",marginBottom:8}}>+ Compromisso</Btn><Btn onClick={()=>setCs("sinal")} style={{width:"100%"}} disabled={cData.compromissos.length===0}>Próximo →</Btn></div>}</Card>}
+{cs==="sinal"&&<Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Sinal de alerta</p><p style={{fontSize:13,color:C.muted,marginBottom:12,fontFamily:SF}}>Como saberão que o acordo está sendo respeitado?</p><TA value={cData.indicador} onChange={v=>setCData(d=>({...d,indicador:v}))} rows={3} ph="Ex: nos sentimos mais leves ao falar sobre este tema..."/><div style={{display:"flex",gap:8,marginTop:8}}><Btn outline onClick={()=>setCs("compromissos")} style={{flex:1}}>← Voltar</Btn><Btn onClick={()=>setCs("revisao")} style={{flex:1}}>Próximo →</Btn></div></Card>}
+{cs==="revisao"&&<Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Data de revisão</p><p style={{fontSize:13,color:C.muted,marginBottom:12,fontFamily:SF}}>Quando vão avaliar se o acordo está funcionando?</p><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>{REV_OPC.map(o=><button key={o.label} onClick={()=>setCData(d=>({...d,revisaoEm:futureISO(o.dias)}))} style={{padding:"8px 16px",borderRadius:10,border:`1.5px solid ${C.border}`,background:cData.revisaoEm===futureISO(o.dias)?C.primary:"transparent",color:cData.revisaoEm===futureISO(o.dias)?"#fff":C.text,fontSize:13,cursor:"pointer",fontFamily:SF}}>{o.label}</button>)}</div>{cData.revisaoEm&&<p style={{fontSize:13,color:C.accent,fontFamily:SF,marginBottom:12}}>Revisão em: {fmtBR(cData.revisaoEm)}</p>}<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><input type="checkbox" checked={cData.lembrete} onChange={e=>setCData(d=>({...d,lembrete:e.target.checked}))} style={{width:16,height:16,accentColor:C.primary}}/><span style={{fontSize:13,color:C.muted,fontFamily:SF}}>Lembrar próximo da revisão</span></div><div style={{display:"flex",gap:8}}><Btn outline onClick={()=>setCs("sinal")} style={{flex:1}}>← Voltar</Btn><Btn onClick={()=>setCs("planob")} style={{flex:1}}>Próximo →</Btn></div></Card>}
+{cs==="planob"&&<Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Plano B</p><p style={{fontSize:13,color:C.muted,marginBottom:12,fontFamily:SF}}>Se o acordo não funcionar como planejado, o que farão?</p><TA value={cData.planoB} onChange={v=>setCData(d=>({...d,planoB:v}))} rows={3} ph="Ex: marcamos uma conversa com terapeuta..."/><div style={{display:"flex",gap:8,marginTop:8}}><Btn outline onClick={()=>setCs("revisao")} style={{flex:1}}>← Voltar</Btn><Btn onClick={salvarAcordo} style={{flex:1}} color={C.green}>💚 Salvar Acordo</Btn></div></Card>}
+</Wrap></div>;
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="🤝 Mapa de Acordos" sub="Transforme acordos tácitos em expressos" onBack={()=>go("home")}/><Banner s={sessao}/><Wrap>
+{all.map(area=>{const a=getA(area.id);const myS=a[myRole]?.status;const otherS=a[other]?.status;const done=a.expresso||a.acordo?.texto;return<div key={area.id} onClick={()=>{setDetail(area);const d2=a[myRole]||{};setPData({status:d2.status||"",contexto:d2.contexto||""});setPStep(d2.status?"done":"status");setInsight(null);setIaData(null);setView("setup");}} style={{background:C.card,borderRadius:18,padding:"14px 16px",marginBottom:10,boxShadow:"0 1px 8px rgba(0,0,0,0.05)",cursor:"pointer",borderLeft:done?`3px solid ${C.green}`:myS?`3px solid ${ST[myS]?.color||C.border}`:"none"}}>
+<div style={{display:"flex",alignItems:"center",gap:12}}><div style={{fontSize:26,width:36,textAlign:"center",flexShrink:0}}>{area.icon}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:C.text,marginBottom:4}}>{area.label}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{myS&&<Tag color={ST[myS]?.color||C.muted} label={casal[myRole]+": "+ST[myS]?.label}/>}{otherS&&<Tag color={ST[otherS]?.color||C.muted} label={casal[other]+": "+ST[otherS]?.label}/>}{done&&<Tag color={C.green} label="✓ Expresso"/>}</div></div><div style={{color:C.accent,fontSize:18,opacity:.5}}>›</div></div></div>;})}
+{addArea?<Card><p style={{fontWeight:700,marginTop:0}}>Nova área</p><div style={{display:"flex",gap:8,marginBottom:10}}>{["💬","🏠","💼","🎓","✈️","❤️","🌿","⚽","🎵","🐾"].map(e=><button key={e} onClick={()=>setNI(e)} style={{fontSize:20,background:nI===e?C.tag:"transparent",border:nI===e?`1.5px solid ${C.border}`:"none",borderRadius:8,padding:4,cursor:"pointer"}}>{e}</button>)}</div><In value={nL} onChange={setNL} ph="Nome da área..."/><div style={{display:"flex",gap:8,marginTop:10}}><Btn outline sm onClick={()=>setAddArea(false)}>Cancelar</Btn><Btn sm onClick={addC} disabled={!nL.trim()}>Adicionar</Btn></div></Card>:<button onClick={()=>setAddArea(true)} style={{background:"transparent",border:`1.5px dashed ${C.border}`,borderRadius:14,padding:"11px 0",width:"100%",color:C.muted,fontSize:14,cursor:"pointer",fontFamily:GF,marginTop:4}}>+ Nova área personalizada</button>}
+</Wrap></div>;}
+
+/* ============ EMOCIONÁRIO ============ */
+function EmocionarioModal({word,cor,onFechar,onUsar}){
+const[det,setDet]=useState(null);const[load,setLoad]=useState(true);
+useEffect(()=>{(async()=>{
+  if(DEMO_MODE){await new Promise(r=>setTimeout(r,800));setDet(DEMO_EMOC[word]||DEMO_EMOC["ansioso"]);}
+  else{const d=await ai(SYS_EMOC,'Sentimento em português: "'+word+'"');setDet(d?.error?null:d);}
+  setLoad(false);
+})();},[word]);
+return<div onClick={onFechar} style={{position:"fixed",inset:0,background:"rgba(10,40,25,0.72)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"}}>
+<div onClick={e=>e.stopPropagation()} style={{background:C.card,borderRadius:22,padding:"26px 22px",maxWidth:400,width:"100%",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 16px 60px rgba(0,0,0,0.3)"}}>
+  <div style={{textAlign:"center",marginBottom:18,paddingBottom:16,borderBottom:`1px solid ${C.border}`}}>
+    <div style={{fontSize:10,fontWeight:700,color:cor,textTransform:"uppercase",letterSpacing:2.5,marginBottom:8,fontFamily:SF}}>✦ Emocionário ✦</div>
+    <h2 style={{margin:0,fontSize:28,color:C.text,fontFamily:GF}}>{word}</h2>
+  </div>
+  {load&&<div style={{textAlign:"center",padding:32}}><Spinner/></div>}
+  {!load&&det&&<div className="fu">
+    <div style={{marginBottom:16}}><div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8,fontFamily:SF}}>Etimologia</div><p style={{margin:0,fontSize:13,lineHeight:1.8,color:C.text}}>{det.etimologia}</p></div>
+    <div style={{marginBottom:16,background:"#edf9f4",borderRadius:14,padding:"14px 16px"}}><div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8,fontFamily:SF}}>Significado</div><p style={{margin:0,fontSize:13,lineHeight:1.8,color:C.text}}>{det.significado}</p></div>
+    {det.poesia&&<div style={{marginBottom:18,padding:"14px 16px",borderLeft:`3px solid ${cor}`,background:cor+"10",borderRadius:"0 12px 12px 0"}}><div style={{fontSize:10,fontWeight:700,color:cor,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10,fontFamily:SF}}>Da Poesia</div><blockquote style={{margin:"0 0 10px",fontStyle:"italic",fontSize:14,lineHeight:2,color:C.text,whiteSpace:"pre-line",fontFamily:GF}}>{det.poesia.verso}</blockquote><div style={{fontSize:12,color:C.muted}}>— <strong>{det.poesia.autor}</strong><br/><span style={{fontStyle:"italic"}}>{det.poesia.obra}</span></div></div>}
+  </div>}
+  {!load&&!det&&<p style={{textAlign:"center",color:C.muted,fontFamily:SF,padding:"20px 0"}}>Indisponível. Tente novamente.</p>}
+  <div style={{display:"flex",gap:8,marginTop:4}}>
+    {det&&onUsar&&<Btn onClick={()=>{onUsar(word);onFechar();}} style={{flex:1}}>Usar esta palavra</Btn>}
+    <Btn outline onClick={onFechar}>Fechar</Btn>
+  </div>
+</div></div>;}
+
+function EmocionarioPanel({onAdd,cor}){
+const cats=Object.keys(FEEL);const[cat,setCat]=useState(cats[0]);const[mword,setMword]=useState(null);
+return<>{mword&&<EmocionarioModal word={mword} cor={cor} onFechar={()=>setMword(null)} onUsar={onAdd}/>}
+<div style={{background:"#edf9f4",borderRadius:14,padding:12,marginTop:8,border:`1px solid ${C.border}`}}>
+  <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{background:cat===c?cor:"transparent",color:cat===c?"#fff":C.muted,border:`1px solid ${cat===c?cor:C.border}`,borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:SF}}>{c}</button>)}</div>
+  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FEEL[cat].map(w=><span key={w} onClick={()=>setMword(w)} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:"5px 12px",fontSize:12,cursor:"pointer",color:C.text,fontFamily:SF,display:"inline-flex",alignItems:"center",gap:4}}>{w}<span style={{fontSize:9,color:C.muted,opacity:.6}}>ℹ</span></span>)}</div>
+  <p style={{fontSize:11,color:C.muted,margin:"8px 0 0",textAlign:"center",fontFamily:SF}}>Toque em uma palavra para descobrir sua história</p>
+</div></>;
+}
+
+/* ============ COMUNICADOR CNV ============ */
+function Comunicador({casal,active,setActive,go,sessao,isDemo,role,prefill,onClearPrefill}){
+const introPast=()=>{try{return!!localStorage.getItem(CNV_INTRO_KEY);}catch(e){return false;}};
+const setIntroPast=()=>{try{localStorage.setItem(CNV_INTRO_KEY,"1");}catch(e){}};
+const[fase,setFase]=useState(()=>prefill?"cnv":(introPast()?"livre":"intro"));
+const[step,setStep]=useState(0);
+const[textoLivre,setTextoLivre]=useState("");
+const[data,setData]=useState({observo:prefill?.campo==="observo"?prefill.texto:"",sinto:"",necessito:"",peco:""});
+const[showLonga,setShowLonga]=useState(false);
+const[showEmoc,setShowEmoc]=useState(false);
+const[showNeeds,setShowNeeds]=useState(false);
+const[revisao,setRevisao]=useState(null);
+const[loading,setLoading]=useState(false);
+const[versaoEsc,setVersaoEsc]=useState("refinada");
+const[enviado,setEnviado]=useState(false);
+const myRole=isDemo?active:role;
+const outro=myRole==="p1"?"p2":"p1";
+const s=CNVSTEPS[step];
+const canNext=data[s?.id]?.trim();
+
+const reset=()=>{if(onClearPrefill)onClearPrefill();setFase(introPast()?"livre":"intro");setStep(0);setTextoLivre("");setData({observo:"",sinto:"",necessito:"",peco:""});setRevisao(null);setVersaoEsc("refinada");setEnviado(false);setShowEmoc(false);setShowNeeds(false);setShowLonga(false);};
+
+const gerarRevisao=async()=>{
+  setLoading(true);setFase("revisao");
+  let r;
+  if(DEMO_MODE){
+    await new Promise(res=>setTimeout(res,1400));
+    const vagos=Object.entries({observo:data.observo,sinto:data.sinto,necessito:data.necessito,peco:data.peco}).filter(([,v])=>!v||v.trim().length<25).map(([k])=>k);
+    r=vagos.length>0?{precisa_contexto:true,orientacao:"Para oferecer uma análise útil sem presumir nada, preciso de um pouco mais de detalhes nos campos indicados. Quanto mais concreto você for — sem julgamentos, apenas os fatos e o que você sentiu — mais a revisão vai refletir sua realidade, não uma situação inventada.",campos:vagos}:DEMO_CNV_REVIEW;
+  } else r=await ai(SYS_CNV_REVIEW,"Observo: "+data.observo+"\nSinto: "+data.sinto+"\nNecessito: "+data.necessito+"\nPeço: "+data.peco);
+  setRevisao(r?.error?null:r);setLoading(false);
+};
+
+const textoEnvio=revisao?(versaoEsc==="refinada"?revisao.versao_refinada:revisao.versao_original):"Observo: "+data.observo+"\n\nSinto: "+data.sinto+"\n\nNecessito: "+data.necessito+"\n\nPeço: "+data.peco;
+
+if(fase==="intro")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Comunicação Assertiva" onBack={()=>go("home")}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+<Card>
+<p style={{fontWeight:700,color:C.primary,fontSize:16,marginTop:0}}>Uma ferramenta para quem quer ser compreendido</p>
+<p style={{fontSize:14,lineHeight:1.8,color:C.text,margin:"0 0 10px"}}>Comunicar melhor não garante que o outro vai atender seu pedido — mas provavelmente vai melhorar a qualidade da conversa. Aqui você aprende a expressar o que sente, o que precisa e o que pede de forma que o outro consiga ouvir.</p>
+<p style={{fontSize:14,lineHeight:1.8,color:C.accent,margin:"0 0 14px",fontStyle:"italic"}}>Lembre: ninguém tem percepção telepática do que você precisa — nem deveria ter.</p>
+{!showLonga&&<button onClick={()=>setShowLonga(true)} style={{background:"transparent",border:"none",color:C.accent,fontSize:13,cursor:"pointer",fontFamily:SF,padding:"0 0 14px",display:"block"}}>Saiba mais sobre a técnica ↓</button>}
+{showLonga&&<div style={{background:"#edf5ef",borderRadius:12,padding:14,marginBottom:14}}><p style={{fontSize:13,lineHeight:1.8,color:C.text,margin:"0 0 8px"}}>A técnica tem quatro etapas: você descreve o que observou (fatos concretos), nomeia o que sente (emoção real), identifica a necessidade por trás do sentimento, e faz um pedido concreto e realizável.</p><p style={{fontSize:13,lineHeight:1.8,color:C.text,margin:0}}>Ao final, a IA revisa sua mensagem e oferece uma versão refinada — explicando cada ajuste. É uma oportunidade de aprendizado sobre si mesmo, não uma correção.</p></div>}
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+<Btn onClick={()=>setFase("livre")} style={{flex:1}}>Começar →</Btn>
+<Btn outline onClick={()=>{setIntroPast();setFase("livre");}} sm>Não mostrar novamente</Btn>
+</div>
+</Card></Wrap></div>;
+
+if(fase==="livre")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Comunicação Assertiva" sub="Passo 1 — Expressão livre" onBack={()=>go("home")}/><Banner s={sessao}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+<Card>
+<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><span style={{fontSize:22}}>✍️</span><div><p style={{fontWeight:700,color:C.primary,margin:0,fontSize:15}}>Escreva sem filtro</p><p style={{fontSize:12,color:C.muted,margin:"3px 0 0",fontFamily:SF}}>Campo 100% privado — nunca será enviado ao parceiro</p></div></div>
+<div style={{background:"#fff8f0",borderRadius:10,padding:"8px 12px",fontSize:12,color:"#b45309",marginBottom:12,fontFamily:SF,lineHeight:1.5}}>🔒 O que você escrever aqui fica só com você</div>
+<TA value={textoLivre} onChange={setTextoLivre} rows={5} ph="Escreva como você realmente está se sentindo, sem censura. O que está pesando? O que você gostaria de dizer?"/>
+<div style={{display:"flex",gap:8,marginTop:12}}>
+<Btn onClick={()=>setFase("passos")} style={{flex:1}}>Próximo →</Btn>
+<Btn outline onClick={()=>setFase("passos")} sm>Pular</Btn>
+</div>
+</Card></Wrap></div>;
+
+if(fase==="passos"){const si=step+2;return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Comunicação Assertiva" sub={"Passo "+si+" de 5 — "+s.label} onBack={()=>{if(step===0){setFase("livre");}else{setStep(p=>p-1);}setShowLonga(false);setShowEmoc(false);setShowNeeds(false);}}/><Banner s={sessao}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+<div style={{display:"flex",gap:3,marginBottom:16}}>{[0,1,2,3,4].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<=(step+1)?s.color:C.border}}/>)}</div>
+<Card style={{borderLeft:"3px solid "+s.color}}>
+<div style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:6}}><span style={{fontSize:22}}>{s.icon}</span><div style={{flex:1}}>
+<p style={{fontWeight:700,color:s.color,margin:0,fontSize:15}}>{s.label}</p>
+<p style={{fontSize:13,color:C.muted,margin:"4px 0 6px",fontFamily:SF,lineHeight:1.55}}>{CNV_DESC[s.id].curta}</p>
+{!showLonga&&<button onClick={()=>setShowLonga(true)} style={{background:"transparent",border:"none",color:C.accent,fontSize:12,cursor:"pointer",fontFamily:SF,padding:0}}>Ler explicação completa ↓</button>}
+{showLonga&&<div style={{background:s.color+"0a",borderRadius:10,padding:"10px 12px",marginBottom:6}}><p style={{fontSize:12,color:C.text,lineHeight:1.75,margin:0,fontFamily:SF}}>{CNV_DESC[s.id].longa}</p></div>}
+</div></div>
+{s.hasDict&&<div style={{margin:"10px 0 6px"}}><button onClick={()=>{setShowEmoc(p=>!p);setShowNeeds(false);}} style={{background:showEmoc?s.color:C.tag,color:showEmoc?"#fff":C.primary,border:"none",borderRadius:10,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:SF,fontWeight:600}}>{"📖 "+(showEmoc?"Fechar":"Abrir")+" Emocionário"}</button>{showEmoc&&<EmocionarioPanel onAdd={w=>setData(d=>({...d,sinto:d.sinto+(d.sinto?", ":"")+w}))} cor={s.color}/>}</div>}
+{s.hasNeeds&&<div style={{margin:"10px 0 6px"}}><button onClick={()=>{setShowNeeds(p=>!p);setShowEmoc(false);}} style={{background:showNeeds?s.color:C.tag,color:showNeeds?"#fff":C.primary,border:"none",borderRadius:10,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:SF,fontWeight:600}}>{"🌱 "+(showNeeds?"Fechar":"Explorar")+" necessidades"}</button>{showNeeds&&<div style={{background:"#edf9f4",borderRadius:14,padding:12,marginTop:8}}>{Object.entries(NEEDS).map(([g,ns])=><div key={g} style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:C.primary,marginBottom:6,fontFamily:SF,textTransform:"uppercase",letterSpacing:1}}>{g}</div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{ns.map(n=><span key={n} onClick={()=>setData(d=>({...d,necessito:d.necessito+(d.necessito?", ":"")+n}))} style={{background:"#fff",border:"1px solid "+C.border,borderRadius:20,padding:"4px 11px",fontSize:12,cursor:"pointer",color:C.text}}>{n}</span>)}</div></div>)}</div>}</div>}
+{s.hasDisclaimer&&<div style={{background:"#fff8f0",borderRadius:10,padding:"8px 12px",fontSize:12,color:"#b45309",margin:"8px 0 6px",fontFamily:SF,lineHeight:1.5}}>Um pedido genuíno pode receber um não — e isso está bem. Uma exigência disfarçada de pedido gera resistência.</div>}
+<TA value={data[s.id]} onChange={v=>setData(d=>({...d,[s.id]:v}))} rows={3} ph={s.id==="observo"?"O que aconteceu, como uma câmera filmaria...":s.id==="sinto"?"Nomeie sua emoção real...":s.id==="necessito"?"Que necessidade estava por trás desse sentimento?":"Qual seria seu pedido concreto e realizável?"}/>
+<div style={{display:"flex",gap:8,marginTop:12}}>
+{step<3?<Btn onClick={()=>{setStep(p=>p+1);setShowLonga(false);setShowEmoc(false);setShowNeeds(false);}} disabled={!canNext} style={{flex:1}}>Próximo →</Btn>:<Btn onClick={gerarRevisao} disabled={loading||!canNext} style={{flex:1}} color={C.green}>{loading?<span style={{display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}><Dots/>Analisando...</span>:"✨ Analisar com IA →"}</Btn>}
+</div>
+</Card></Wrap></div>;}
+
+if(fase==="revisao")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Revisão da IA" sub="Analise e escolha o que enviar" onBack={()=>{setFase("passos");setStep(3);}}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+{loading&&<Card style={{textAlign:"center",padding:40}}><Spinner/><p style={{color:C.muted,fontFamily:SF,marginTop:16}}>A IA está analisando sua mensagem...</p></Card>}
+{!loading&&revisao?.precisa_contexto&&<><div style={{background:"#edf5ef",borderRadius:14,padding:"14px 16px",marginBottom:12,borderLeft:"3px solid "+C.accent}}><div style={{fontSize:11,fontWeight:700,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:SF}}>Para uma análise sem suposições ✦</div><p style={{fontSize:14,lineHeight:1.8,color:C.text,margin:"0 0 14px"}}>{revisao.orientacao}</p>{revisao.campos?.length>0&&<div><div style={{fontSize:12,fontWeight:700,color:C.primary,marginBottom:8,fontFamily:SF}}>Campos que merecem mais detalhes:</div><div style={{display:"flex",flexWrap:"wrap",gap:8}}>{revisao.campos.map(c=>{const st=CNVSTEPS.find(x=>x.id===c);return st?<span key={c} style={{background:st.color+"15",border:"1px solid "+st.color+"44",borderRadius:20,padding:"4px 12px",fontSize:13,color:st.color,fontFamily:SF,fontWeight:600}}>{st.icon} {st.label}</span>:null;})}</div></div>}</div><Btn onClick={()=>{const primeiro=CNVSTEPS.findIndex(x=>revisao.campos?.includes(x.id));setStep(primeiro>=0?primeiro:0);setFase("passos");setRevisao(null);}} style={{width:"100%"}}>Voltar e detalhar →</Btn></>}
+{!loading&&!revisao?.precisa_contexto&&!revisao&&<Card style={{textAlign:"center",padding:32}}><p style={{color:C.muted,fontFamily:SF}}>Não foi possível gerar a revisão.</p><Btn onClick={()=>{setFase("passos");setStep(3);}} style={{marginTop:12}}>← Voltar</Btn></Card>}
+{!loading&&revisao&&!revisao.precisa_contexto&&<>
+{revisao.ponto_forte&&<div style={{background:"#edf5ef",borderRadius:14,padding:"12px 16px",marginBottom:12,borderLeft:"3px solid "+C.accent}}><div style={{fontSize:11,fontWeight:700,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontFamily:SF}}>Ponto forte ✓</div><p style={{fontSize:13,lineHeight:1.7,color:C.text,margin:0}}>{revisao.ponto_forte}</p></div>}
+{revisao.explicacoes?.length>0&&<Card><p style={{fontWeight:700,color:C.primary,marginTop:0,fontSize:14}}>O que a IA ajustou — e por quê</p>{revisao.explicacoes.map((e,i)=><div key={i} style={{display:"flex",gap:10,marginBottom:10,paddingBottom:10,borderBottom:i<revisao.explicacoes.length-1?"1px solid "+C.border:"none"}}><span style={{color:C.accent,fontWeight:700,flexShrink:0,fontFamily:SF,minWidth:18}}>{i+1}.</span><p style={{fontSize:13,lineHeight:1.7,color:C.text,margin:0}}>{e}</p></div>)}</Card>}
+<Card><p style={{fontWeight:700,color:C.primary,marginTop:0,fontSize:14}}>Escolha o que enviar</p>
+<div style={{display:"flex",gap:8,marginBottom:14}}>{[["original","Minha versão"],["refinada","Versão da IA"]].map(([v,l])=><button key={v} onClick={()=>setVersaoEsc(v)} style={{flex:1,padding:"9px 0",borderRadius:12,border:"2px solid "+(versaoEsc===v?C.accent:C.border),background:versaoEsc===v?"#edf5ef":"transparent",color:versaoEsc===v?C.accent:C.muted,fontSize:13,cursor:"pointer",fontFamily:SF,fontWeight:versaoEsc===v?700:400}}>{l}</button>)}</div>
+<div style={{background:"#F7FAF6",borderRadius:12,padding:"14px 16px",fontSize:14,lineHeight:2,whiteSpace:"pre-wrap",color:C.text,fontFamily:SF,marginBottom:12}}>{versaoEsc==="refinada"?revisao.versao_refinada:revisao.versao_original}</div>
+<Btn onClick={()=>setFase("preview")} style={{width:"100%"}}>Ver prévia e enviar →</Btn>
+</Card></>}
+</Wrap></div>;
+
+if(fase==="preview")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💬 Prévia do envio" sub="Exatamente o que seu parceiro vai ver" onBack={()=>setFase("revisao")}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+{!enviado&&<>
+<Card style={{borderLeft:"3px solid "+C.accent}}>
+<div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontFamily:SF}}>Para: {casal[outro]}</div>
+<div style={{fontSize:14,lineHeight:2,whiteSpace:"pre-wrap",color:C.text}}>{textoEnvio}</div>
+<div style={{background:"#F7FAF6",borderRadius:10,padding:"8px 12px",marginTop:14,fontSize:12,color:C.muted,fontFamily:SF}}>🔒 Sua expressão livre não está incluída neste envio</div>
+</Card>
+<div style={{display:"flex",gap:8}}>
+<Btn onClick={()=>setEnviado(true)} style={{flex:1}} color={C.green}>{"Enviar para "+casal[outro]+" →"}</Btn>
+<Btn outline onClick={reset}>Descartar</Btn>
+</div></>}
+{enviado&&<Card style={{textAlign:"center",padding:32}}><div style={{fontSize:48,marginBottom:12}}>✉️</div><p style={{fontWeight:700,color:C.accent,fontSize:16,margin:"0 0 6px"}}>Mensagem enviada!</p><p style={{fontSize:13,color:C.muted,fontFamily:SF,margin:"0 0 4px"}}>{casal[outro]} receberá sua mensagem.</p><p style={{fontSize:13,color:C.muted,fontFamily:SF,margin:"0 0 24px",fontStyle:"italic",lineHeight:1.7}}>Mesmo que o pedido não seja acatado agora, observe o que acontece com a qualidade da conversa quando você se comunica com mais clareza.</p><div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}><Btn onClick={reset}>Nova mensagem</Btn><Btn outline onClick={()=>go("home")}>← Início</Btn></div></Card>}
+</Wrap></div>;
+
+return null;}
+
+
+/* ============ PROJETOS ============ */
+function Projetos({casal,go,projetos,setProjetos,sessao,onSaveProjeto,onDelProjeto,onConvertMarco}){const[view,setView]=useState("list");const[sel,setSel]=useState(null);const[aph,setAph]=useState("planejar");const[form,setForm]=useState({nome:""});const[sug,setSug]=useState(null);const[lsug,setLsug]=useState(false);const[showConvertMarco,setShowConvertMarco]=useState(false);
+const create=async()=>{if(!form.nome.trim())return;const np={id:"tmp_"+Date.now(),nome:form.nome,...Object.fromEntries(PQ.map(f=>[f.id,form[f.id]||""])),status:"planejar",criadoEm:new Date().toISOString()};setProjetos(p=>[...p,np]);onSaveProjeto(np);setForm({nome:""});setView("list");};
+const getDicas=async()=>{setLsug(true);const d=await ai(SYS_DICAS,`Projeto: ${form.nome}`);setSug(d);setLsug(false);};
+const proj=projetos.find(p=>p.id===sel);
+const updateStatus=(id,status)=>{const upd=projetos.map(p=>p.id===id?{...p,status}:p);setProjetos(upd);const p=upd.find(x=>x.id===id);if(p)onSaveProjeto(p);};
+const concluirComMarco=(p)=>{updateStatus(p.id,"concluido");setAph("celebrar");setShowConvertMarco(true);};
+if(view==="detail"&&proj){const phIdx=["planejar","desenvolver","acompanhar","celebrar","concluido"].indexOf(aph);return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title={proj.nome} sub={PHASES[Math.min(phIdx,3)]?.label} onBack={()=>setView("list")}/><Banner s={sessao}/><div style={{display:"flex",gap:3,padding:"12px 16px 0",background:C.card}}>{PHASES.map((ph,i)=><div key={ph.id} style={{flex:1,height:4,borderRadius:2,background:i<=phIdx?ph.color:C.border}}/>)}</div><Wrap>
+<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>{PHASES.map(ph=><button key={ph.id} onClick={()=>{setAph(ph.id);updateStatus(proj.id,ph.id);}} style={{padding:"8px 14px",borderRadius:12,border:`1.5px solid ${aph===ph.id?ph.color:C.border}`,background:aph===ph.id?ph.color+"15":"transparent",color:aph===ph.id?ph.color:C.muted,fontSize:13,cursor:"pointer",fontFamily:SF,fontWeight:aph===ph.id?700:400}}>{ph.icon} {ph.label}</button>)}<button onClick={()=>concluirComMarco(proj)} style={{padding:"8px 14px",borderRadius:12,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,cursor:"pointer",fontFamily:SF}}>🏁 Concluído</button></div>
+{showConvertMarco&&<div className="fu" style={{background:"linear-gradient(135deg,#edf5ef,#d4edda)",borderRadius:18,padding:"16px",marginBottom:12,border:`1px solid ${C.accent}44`}}><div style={{fontWeight:700,color:C.primary,marginBottom:6,fontSize:14}}>🎉 Parabéns pela conclusão!</div><p style={{fontFamily:SF,fontSize:13,color:C.muted,marginBottom:12,lineHeight:1.6}}>Transformar este projeto em um marco na história de vocês?</p><div style={{display:"flex",gap:8}}><button onClick={()=>{onConvertMarco({titulo:proj.nome,data_evento:new Date().toISOString().slice(0,10),categoria:"conquista"});}} style={{flex:1,background:C.accent,border:"none",borderRadius:12,padding:"9px 0",color:"#fff",fontSize:13,cursor:"pointer",fontFamily:GF}}>Sim, criar marco →</button><button onClick={()=>setShowConvertMarco(false)} style={{padding:"9px 14px",borderRadius:12,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,cursor:"pointer",fontFamily:SF}}>Não</button></div></div>}
+{PQ.map(f=>proj[f.id]?<Card key={f.id} style={{padding:14}}><div style={{fontSize:11,fontWeight:600,color:C.primary,textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontFamily:SF}}>{f.icon} {f.label}</div><div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{proj[f.id]}</div></Card>:null)}
+<button onClick={()=>{onDelProjeto(proj.id);setProjetos(p=>p.filter(x=>x.id!==proj.id));setView("list");}} style={{background:"transparent",border:`1px solid ${C.red}33`,borderRadius:12,padding:"10px 0",width:"100%",color:C.red,fontSize:13,cursor:"pointer",fontFamily:SF,marginTop:8}}>Excluir projeto</button></Wrap></div>;}
+if(view==="new")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="Novo Projeto" onBack={()=>setView("list")}/><Wrap><Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Nome do projeto</p><In value={form.nome} onChange={v=>setForm(f=>({...f,nome:v}))} ph="Ex: Comprar nossa casa..."/></Card><Card><p style={{fontWeight:700,marginTop:0,color:C.primary}}>Detalhe (opcional)</p>{PQ.slice(0,4).map(f=><div key={f.id} style={{marginBottom:14}}><div style={{fontSize:12,fontWeight:600,color:C.primary,marginBottom:6,fontFamily:SF}}>{f.icon} {f.label}</div><In value={form[f.id]||""} onChange={v=>setForm(p=>({...p,[f.id]:v}))} ph={f.ph}/></div>)}{!sug&&!lsug&&<Btn outline onClick={getDicas} disabled={!form.nome.trim()||lsug} style={{width:"100%",marginBottom:8}}>Obter dicas com IA</Btn>}{lsug&&<p style={{textAlign:"center",color:C.muted,fontFamily:SF,fontSize:13}}>Gerando...</p>}{sug&&!sug.error&&sug.dicas&&<div style={{background:"#edf5ef",borderRadius:14,padding:12,marginBottom:12}}>{sug.dicas.map((d,i)=><div key={i} style={{fontSize:13,color:C.text,padding:"5px 0",borderBottom:i<sug.dicas.length-1?`1px solid ${C.border}`:"none"}}>💡 {d}</div>)}</div>}</Card><Btn onClick={create} disabled={!form.nome.trim()} style={{width:"100%"}}>Criar projeto →</Btn></Wrap></div>;
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="🎯 Projetos em Comum" sub="Objetivos que exigem cooperação" onBack={()=>go("home")}/><Banner s={sessao}/><Wrap>
+{projetos.length===0?<Card style={{textAlign:"center",padding:40}}><div style={{fontSize:40,marginBottom:12}}>🚀</div><p style={{fontWeight:700,marginBottom:8}}>Nenhum projeto ainda</p><p style={{fontSize:13,color:C.muted,fontFamily:SF,marginBottom:16}}>Criem juntos o primeiro objetivo em comum.</p><Btn onClick={()=>setView("new")}>+ Criar primeiro projeto →</Btn></Card>:projetos.map(p=>{const phIdx=["planejar","desenvolver","acompanhar","celebrar","concluido"].indexOf(p.status);return<div key={p.id} onClick={()=>{setSel(p.id);setAph(p.status==="concluido"?"celebrar":p.status);setSug(null);setView("detail");}} style={{background:C.card,borderRadius:18,padding:"14px 16px",marginBottom:10,boxShadow:"0 1px 8px rgba(0,0,0,0.05)",cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:44,height:44,borderRadius:13,background:PHASES[Math.min(phIdx,3)]?.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{PHASES[Math.min(phIdx,3)]?.icon}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14}}>{p.nome}</div><div style={{fontSize:12,color:C.muted,marginTop:2,fontFamily:SF}}>{PHASES[Math.min(phIdx,3)]?.label}{p.status==="concluido"?" · Concluído 🎉":""}</div></div></div><div style={{display:"flex",gap:3,marginTop:12}}>{PHASES.map((ph,i)=><div key={ph.id} style={{flex:1,height:3,borderRadius:2,background:i<=phIdx?ph.color:C.border}}/>)}</div></div>;})}
+<button onClick={()=>setView("new")} style={{background:"transparent",border:`1.5px dashed ${C.border}`,borderRadius:14,padding:"11px 0",width:"100%",color:C.muted,fontSize:14,cursor:"pointer",fontFamily:GF,marginTop:4}}>+ Novo projeto</button></Wrap></div>;}
+
+/* ============ CHECKIN ============ */
+function CIAlerta({cor,bg,texto,botoes}){return<div style={{background:bg,borderLeft:`3px solid ${cor}`,borderRadius:"0 12px 12px 0",padding:"12px 14px",marginTop:8,marginBottom:4}}>
+<p style={{fontSize:13,color:"#1A2820",lineHeight:1.7,fontFamily:"'DM Sans',system-ui,sans-serif",margin:"0 0 10px",fontStyle:"italic"}}>{texto}</p>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{botoes.map((b,i)=><button key={i} onClick={b.onClick} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${cor}`,background:"transparent",color:cor,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',system-ui,sans-serif",fontWeight:600}}>{b.label}</button>)}</div>
+</div>;}
+
+function Checkin({casal,active,setActive,go,checkins,setCheckins,sessao,isDemo,role,onSaveCheckin}){
+const d0=new Date();const today=[d0.getFullYear(),String(d0.getMonth()+1).padStart(2,"0"),String(d0.getDate()).padStart(2,"0")].join("-");
+const myRole=isDemo?active:role;const other=myRole==="p1"?"p2":"p1";
+const[form,setForm]=useState({humor:3,abertura:3,tensao:2,conexao:3,nota:""});
+const[conexaoRota,setConexaoRota]=useState(null);
+const todayD=checkins[today]||{};const myDone=!!todayD[myRole];const[saved,setSaved]=useState(false);
+const avg=d=>d?((DIMS.reduce((a,x)=>a+(d[x.id]||3),0))/DIMS.length).toFixed(1):null;
+const save=()=>{const nd={...checkins,[today]:{...todayD,[myRole]:{...form}}};setCheckins(nd);onSaveCheckin(myRole,today,form);setSaved(true);};
+const shareNota=()=>{const updOther={...todayD[other],notaRecebida:{de:casal[myRole],texto:todayD[myRole].nota}};setCheckins(p=>({...p,[today]:{...p[today],[other]:updOther}}));onSaveCheckin(other,today,updOther);};
+
+/* --- lógica de alertas com hierarquia --- */
+const alertas=[];
+if(form.tensao>=4)alertas.push("tensao");
+if(form.humor<=2&&alertas.length<2)alertas.push("humor");
+if(form.abertura<=2&&alertas.length<2)alertas.push("abertura");
+if(form.conexao<=2&&alertas.length<2)alertas.push("conexao");
+
+const renderAlerta=(id)=>{
+  if(id==="tensao")return<CIAlerta key="tensao" cor="#b45309" bg="#fff8f0"
+    texto="Quando a tensão está alta, até conversas simples podem escalar. Antes de abordar qualquer tema com o parceiro, pode valer respirar um pouco. Tente 4 respirações abdominais lentas — inspire pelo nariz contando até 4, expire pela boca contando até 6. Ou dê uma volta curta. Fotos de momentos felizes de vocês também ajudam a baixar o nível antes de conversar."
+    botoes={[{label:"Ver uma leitura →",onClick:()=>go("leituras")}]}/>;
+  if(id==="humor")return<CIAlerta key="humor" cor="#b45309" bg="#f9f4ef"
+    texto="Humor baixo pode ter muitas origens — trabalho, cansaço, algo pessoal. Antes de concluir que é a relação, vale a pena perguntar: isso tem a ver com o meu parceiro ou com outros fatores? Quando conseguimos separar as 'estações', ficamos mais justos com nós mesmos e com o outro. Se não estiver num bom momento, talvez não seja a hora de abordar temas difíceis com o parceiro."
+    botoes={[{label:"Explorar Meu Enredo →",onClick:()=>go("enredo")}]}/>;
+  if(id==="abertura")return<CIAlerta key="abertura" cor="#5a7a9a" bg="#f0f4f9"
+    texto="Quando a abertura está baixa, pode ser difícil ouvir — e qualquer conversa mais densa tende a piorar. Nessas horas, aguardar um momento mais sereno costuma trazer melhores resultados. Uma pergunta que às vezes ajuda: o que me fez escolher esse parceiro? Às vezes reconectar com esses motivos é o que nos tira de um lugar mais reativo."
+    botoes={[{label:"Explorar Meu Enredo →",onClick:()=>go("enredo")}]}/>;
+  if(id==="conexao")return<div key="conexao" style={{background:"#edf5ef",borderLeft:"3px solid #5C8A6A",borderRadius:"0 12px 12px 0",padding:"12px 14px",marginTop:8,marginBottom:4}}>
+    {!conexaoRota&&<div>
+      <p style={{fontSize:13,fontWeight:700,color:"#2D4A3E",margin:"0 0 10px",fontFamily:"'DM Sans',system-ui,sans-serif"}}>Essa falta de conexão tem mais a ver com você mesmo ou com a relação?</p>
+      <div style={{display:"flex",gap:8}}><button onClick={()=>setConexaoRota("eu")} style={{flex:1,padding:"8px 0",borderRadius:20,border:"1.5px solid #5C8A6A",background:"transparent",color:"#5C8A6A",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',system-ui,sans-serif",fontWeight:600}}>Comigo mesmo</button><button onClick={()=>setConexaoRota("rel")} style={{flex:1,padding:"8px 0",borderRadius:20,border:"1.5px solid #5C8A6A",background:"transparent",color:"#5C8A6A",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',system-ui,sans-serif",fontWeight:600}}>Com a relação</button></div>
+    </div>}
+    {conexaoRota==="eu"&&<div>
+      <p style={{fontSize:13,color:"#1A2820",lineHeight:1.7,fontFamily:"'DM Sans',system-ui,sans-serif",margin:"0 0 10px",fontStyle:"italic"}}>Quando a desconexão vem de dentro, entender o que está faltando pra você costuma ser o primeiro passo. Que necessidade sua está sem resposta agora? Explorar isso pode ajudar a clarear antes de conversar com o parceiro.</p>
+      <button onClick={()=>go("enredo")} style={{padding:"6px 14px",borderRadius:20,border:"1.5px solid #5C8A6A",background:"transparent",color:"#5C8A6A",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',system-ui,sans-serif",fontWeight:600}}>Explorar Meu Enredo →</button>
+    </div>}
+    {conexaoRota==="rel"&&<div>
+      <p style={{fontSize:13,color:"#1A2820",lineHeight:1.7,fontFamily:"'DM Sans',system-ui,sans-serif",margin:"0 0 10px",fontStyle:"italic"}}>Quando a conexão está baixa com o parceiro, às vezes o que falta é uma conversa com qualidade — não necessariamente sobre o problema, mas sobre o que cada um precisa. A comunicação assertiva ou o mapa de acordos podem ser bons pontos de partida.</p>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={()=>go("cnv")} style={{padding:"6px 14px",borderRadius:20,border:"1.5px solid #5C8A6A",background:"transparent",color:"#5C8A6A",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',system-ui,sans-serif",fontWeight:600}}>Comunicação Assertiva →</button><button onClick={()=>go("acordos")} style={{padding:"6px 14px",borderRadius:20,border:"1.5px solid #5C8A6A",background:"transparent",color:"#5C8A6A",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',system-ui,sans-serif",fontWeight:600}}>Mapa de Acordos →</button></div>
+    </div>}
+  </div>;
+};
+
+/* --- alerta conjugal --- */
+const alertaConjugal=todayD.p1&&todayD.p2&&(
+  (todayD.p1.tensao>=4||todayD.p2.tensao>=4)||(todayD.p1.abertura<=2||todayD.p2.abertura<=2)
+);
+
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="💓 Check-in Relacional" sub={new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})} onBack={()=>go("home")}/><Banner s={sessao}/><Wrap>
+{isDemo&&<PT casal={casal} active={active} set={setActive} isDemo={isDemo}/>}
+
+{(myDone||saved)?<Card style={{textAlign:"center",padding:28}}><div style={{fontSize:48,marginBottom:12}}>✅</div><p style={{fontWeight:700,color:C.accent,fontSize:16,margin:"0 0 6px"}}>Check-in de {casal[myRole]} feito!</p><p style={{fontSize:13,color:C.muted,fontFamily:SF,margin:"0 0 20px"}}>Registrado e salvo.</p><div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}><Btn onClick={()=>go("home")} color={C.primary}>← Início</Btn>{isDemo&&<Btn outline onClick={()=>setActive(other)}>Passar para {casal[other]} →</Btn>}</div></Card>
+
+:<Card>
+  <div style={{background:"#edf5ef",borderRadius:12,padding:"10px 14px",marginBottom:20}}>
+    <p style={{fontSize:13,color:C.accent,lineHeight:1.65,fontFamily:SF,margin:0}}>Essas informações são usadas para personalizar o que o app sugere pra você. Mais do que preencher, use este momento para pausar e se perguntar: como eu realmente estou hoje?</p>
+  </div>
+  <p style={{fontWeight:700,marginTop:0,color:C.primary}}>Como {casal[myRole]} está hoje?</p>
+  {DIMS.map(d=><div key={d.id} style={{marginBottom:8}}>
+    <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}><span style={{color:C.primary,fontWeight:700}}>{d.label}</span><span style={{color:C.accent,fontWeight:700,fontFamily:SF}}>{form[d.id]}/5</span></div>
+    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18}}>{d.lo}</span><input type="range" min={1} max={5} value={form[d.id]} onChange={e=>setForm(f=>({...f,[d.id]:+e.target.value}))} style={{flex:1}}/><span style={{fontSize:18}}>{d.hi}</span></div>
+    {alertas.includes(d.id)&&renderAlerta(d.id)}
+  </div>)}
+  <p style={{fontWeight:700,marginBottom:8,marginTop:12}}>Nota (opcional)</p><TA value={form.nota} onChange={v=>setForm(f=>({...f,nota:v}))} rows={2} ph="Como está se sentindo?"/><Btn onClick={save} style={{width:"100%",marginTop:12}}>Salvar check-in →</Btn>
+</Card>}
+
+{myDone&&todayD[myRole]?.nota&&<Card style={{borderLeft:`3px solid ${C.accent}`}}><p style={{fontWeight:700,color:C.primary,marginTop:0,fontSize:13}}>Compartilhar nota com {casal[other]}?</p><div style={{background:"#edf5ef",borderRadius:12,padding:"10px 12px",fontSize:13,fontStyle:"italic",color:C.text,marginBottom:12}}>"{todayD[myRole].nota}"</div><Btn onClick={shareNota} color={C.accent} style={{width:"100%"}}>Enviar para {casal[other]} →</Btn></Card>}
+{todayD[myRole]?.notaRecebida&&<Card style={{borderLeft:"3px solid #b45309",background:"#fff8f0"}}><p style={{fontWeight:700,color:"#b45309",marginTop:0,fontSize:13}}>{todayD[myRole].notaRecebida.de} enviou:</p><p style={{fontSize:14,fontStyle:"italic",color:C.text,margin:0}}>"{todayD[myRole].notaRecebida.texto}"</p></Card>}
+
+{todayD.p1&&todayD.p2&&<Card>
+  <p style={{fontWeight:700,color:C.primary,marginTop:0}}>Clima de hoje — comparação</p>
+  {alertaConjugal&&<div style={{background:"#fff8f0",borderLeft:"3px solid #b45309",borderRadius:"0 12px 12px 0",padding:"10px 14px",marginBottom:16}}><p style={{fontSize:13,color:"#1A2820",lineHeight:1.65,fontFamily:SF,margin:0,fontStyle:"italic"}}>O clima de hoje indica que pode não ser o melhor momento para temas delicados entre vocês. Que tal usar esse tempo para algo leve juntos — antes de abordar o que for mais importante?</p></div>}
+  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>{["p1","p2"].map(p=><div key={p} style={{background:"#edf5ef",borderRadius:14,padding:"12px 10px",textAlign:"center"}}><div style={{fontSize:12,color:C.muted,marginBottom:4,fontFamily:SF}}>{casal[p]}</div><div style={{fontWeight:700,fontSize:22,color:C.accent}}>{avg(todayD[p])}</div></div>)}</div>
+  {DIMS.map(d=>{const v1=todayD.p1?.[d.id]||3,v2=todayD.p2?.[d.id]||3,diff=Math.abs(v1-v2);return<div key={d.id} style={{marginBottom:12}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{color:C.primary,fontWeight:700}}>{d.label}</span>{diff>=2&&<span style={{color:C.red,fontSize:11,fontFamily:SF}}>⚠ Diferença significativa</span>}</div><div style={{display:"flex",gap:4,alignItems:"center"}}><span style={{fontSize:11,color:C.muted,width:64,textAlign:"right",fontFamily:SF}}>{casal.p1}: {v1}</span><div style={{flex:1,display:"flex",gap:2}}>{[1,2,3,4,5].map(i=><div key={i} style={{flex:1,height:8,borderRadius:4,background:i<=v1&&i<=v2?C.accent:i<=v1?"#5C8A6A":i<=v2?"#5a7a9a":C.border}}/>)}</div><span style={{fontSize:11,color:C.muted,width:64,fontFamily:SF}}>{casal.p2}: {v2}</span></div></div>;})}
+</Card>}
+</Wrap></div>;}
+
+/* ============ MEU ENREDO ============ */
+function MeuEnredo({go}){const[sel,setSel]=useState(null);const[resp,setResp]=useState({});const[sint,setSint]=useState(null);const[load,setLoad]=useState(false);const[feito,setFeito]=useState({});
+const tema=TE.find(t=>t.id===sel);
+const gerar=async()=>{setLoad(true);const rs=tema.perguntas.map((q,i)=>"P: "+q+"\nR: "+(resp[i]||"—")).join("\n\n");const d=await ai(SYS_SINTESE,`Tema: ${tema.label}\n\n${rs}`);setSint(d);setLoad(false);setFeito(p=>({...p,[sel]:true}));};
+if(sel&&tema)return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="Meu Enredo" sub={tema.label} onBack={()=>{setSel(null);setSint(null);setResp({});}}/><div style={{background:`linear-gradient(135deg,${tema.cor},${tema.cor}cc)`,color:"#fff",padding:"24px 20px 20px"}}><div style={{fontSize:30,marginBottom:8}}>{tema.icon}</div><h2 style={{margin:"0 0 6px",fontSize:20}}>{tema.label}</h2><p style={{margin:0,opacity:.8,fontSize:13,fontStyle:"italic",fontFamily:SF}}>{tema.sub}</p></div><Wrap><div style={{background:tema.cor+"0c",borderRadius:18,padding:"18px 16px",marginBottom:16}}>{tema.ap.map((p,i)=><p key={i} style={{fontSize:14,lineHeight:1.85,color:C.text,margin:"0 0 14px"}}>{p}</p>)}</div>{tema.perguntas.map((q,i)=><Card key={i}><p style={{fontWeight:700,color:tema.cor,marginTop:0,fontSize:14,lineHeight:1.5}}>{i+1}. {q}</p><TA value={resp[i]||""} onChange={v=>setResp(r=>({...r,[i]:v}))} rows={3} ph="Escreva o que vier..."/></Card>)}{!sint&&<Btn onClick={gerar} disabled={Object.values(resp).filter(v=>v?.trim()).length===0||load} style={{width:"100%"}} color={tema.cor}>{load?"Gerando síntese...":"Gerar síntese →"}</Btn>}{sint&&!sint.error&&<div className="fu">{sint.padrao&&<Card style={{borderLeft:`3px solid ${tema.cor}`}}><div style={{fontSize:11,fontWeight:600,color:tema.cor,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8,fontFamily:SF}}>Padrão identificado</div><p style={{fontSize:14,lineHeight:1.8,margin:0}}>{sint.padrao}</p></Card>}{sint.recurso&&<Card style={{borderLeft:`3px solid ${C.accent}`}}><div style={{fontSize:11,fontWeight:600,color:C.accent,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8,fontFamily:SF}}>Recurso presente em você</div><p style={{fontSize:14,lineHeight:1.8,margin:0}}>{sint.recurso}</p></Card>}{sint.gesto&&<Card><div style={{fontSize:11,fontWeight:600,color:C.primary,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8,fontFamily:SF}}>Um gesto para esta semana</div><p style={{fontSize:14,lineHeight:1.8,margin:0,fontWeight:600,color:C.primary}}>{sint.gesto}</p></Card>}{sint.frase_final&&<div style={{background:tema.cor+"0c",borderRadius:14,padding:20,textAlign:"center",fontStyle:"italic",fontSize:15,color:tema.cor,lineHeight:1.7,fontFamily:GF}}>"{sint.frase_final}"</div>}</div>}</Wrap></div>;
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="📖 Meu Enredo" sub="Auto-reflexão e autoconhecimento" onBack={()=>go("home")}/><Wrap>
+<div onClick={()=>go("historia")} style={{background:"linear-gradient(135deg,#edf5ef,#d4edda)",borderRadius:18,padding:"14px 16px",marginBottom:16,cursor:"pointer",border:`1px solid ${C.accent}44`,display:"flex",alignItems:"center",gap:12}}><div style={{fontSize:24}}>📜</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:C.primary}}>Nossa História</div><div style={{fontSize:12,color:C.muted,fontFamily:SF}}>Ver a linha do tempo de vocês como casal</div></div><div style={{color:C.accent,fontSize:18,opacity:.6}}>›</div></div>
+{TE.map(t=><div key={t.id} onClick={()=>{setSel(t.id);setSint(null);setResp({});}} style={{background:C.card,borderRadius:18,padding:"16px 14px",marginBottom:10,boxShadow:"0 1px 8px rgba(0,0,0,0.05)",borderLeft:`3px solid ${t.cor}`,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",gap:13}}><div style={{width:44,height:44,borderRadius:13,background:t.cor+"15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{t.icon}</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}><div style={{fontWeight:700,fontSize:15}}>{t.label}</div>{feito[t.id]&&<span style={{fontSize:11,color:C.green,fontWeight:600,fontFamily:SF}}>Concluído</span>}</div><div style={{fontSize:13,color:C.muted,fontFamily:SF}}>{t.sub}</div></div><div style={{color:t.cor,fontSize:18,opacity:.6}}>›</div></div></div>)}</Wrap></div>;}
+
+/* ============ LEITURAS ============ */
+function Leituras({casal,go,acordos}){const[tsel,setTsel]=useState(null);const[leitura,setLeitura]=useState(null);const[loading,setLoading]=useState(false);const[lidas,setLidas]=useState({});const[reflex,setReflex]=useState("");const[salvou,setSalvou]=useState(false);
+const temasSug=Object.entries(acordos).filter(([,a])=>a.p1?.status==="conflitante"||a.p2?.status==="conflitante").map(([id])=>id==="financas"?"financas":id==="filhos"?"parentalidade":id==="sexo"?"sexualidade":id==="redes"?"comunicacao":null).filter(Boolean);
+const slistas=tsel?LBASE.filter(s=>s.tema===tsel):LBASE;
+const abrir=async sug=>{if(lidas[sug.titulo]){setLeitura(lidas[sug.titulo]);setReflex("");setSalvou(false);return;}setLoading(sug.titulo);const t=LTEMAS.find(t=>t.id===sug.tema);const d=await ai(`Divulgador científico. APENAS JSON: {"titulo":"titulo","subtitulo":"frase instigante","corpo":"artigo 4-5 parágrafos separados por \\n\\n","pesquisadores":"autores","pergunta_reflexao":"pergunta aberta","tempo_leitura":"X min"}`,`Escreva sobre: ${sug.titulo}`,1600);const art={...(d.error?{titulo:sug.titulo,subtitulo:"",corpo:"Conteúdo indisponível — verifique a chave de API.",pesquisadores:"",pergunta_reflexao:"",tempo_leitura:"—"}:d),titulo:sug.titulo,tema:sug.tema,cor:t?.cor||C.accent};setLidas(p=>({...p,[sug.titulo]:art}));setLeitura(art);setLoading(false);setReflex("");setSalvou(false);};
+if(leitura){const paras=(leitura.corpo||"").split("\n\n").filter(Boolean);const t=LTEMAS.find(t=>t.id===leitura.tema);return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="Leituras" onBack={()=>setLeitura(null)}/><div style={{background:`linear-gradient(135deg,${leitura.cor},${leitura.cor}cc)`,color:"#fff",padding:"28px 20px 24px"}}><div style={{fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:2,opacity:.7,marginBottom:10,fontFamily:SF}}>{t?.icon} {t?.label} · {leitura.tempo_leitura||"3 min"}</div><h2 style={{margin:"0 0 10px",fontSize:20,lineHeight:1.35}}>{leitura.titulo}</h2>{leitura.subtitulo&&<p style={{margin:0,opacity:.85,fontSize:14,lineHeight:1.6,fontStyle:"italic",fontFamily:SF}}>{leitura.subtitulo}</p>}</div><Wrap>{leitura.pesquisadores&&<div style={{background:leitura.cor+"12",borderLeft:`3px solid ${leitura.cor}`,borderRadius:"0 12px 12px 0",padding:"10px 14px",marginBottom:16,fontSize:12,color:C.text,lineHeight:1.6,fontFamily:SF}}>Base científica: {leitura.pesquisadores}</div>}{paras.map((p,i)=><p key={i} style={{fontSize:15,lineHeight:1.9,color:C.text,margin:"0 0 18px"}}>{p}</p>)}{leitura.pergunta_reflexao&&<Card style={{background:leitura.cor+"0a",border:`1px solid ${leitura.cor}33`}}><p style={{fontWeight:700,color:leitura.cor,marginTop:0,fontSize:15}}>Para refletir juntos</p><p style={{fontSize:15,lineHeight:1.75,fontStyle:"italic",color:C.text,margin:"0 0 16px"}}>"{leitura.pergunta_reflexao}"</p><TA value={reflex} onChange={setReflex} rows={3} ph="Escreva sua reflexão..."/>{reflex.trim()&&!salvou&&<Btn onClick={()=>setSalvou(true)} style={{width:"100%",marginTop:10}}>Salvar reflexão</Btn>}{salvou&&<div style={{textAlign:"center",color:C.green,fontWeight:600,fontSize:13,marginTop:10,fontFamily:SF}}>Reflexão salva!</div>}</Card>}<Btn outline onClick={()=>setLeitura(null)} style={{width:"100%",marginTop:8}}>← Voltar</Btn></Wrap></div>;}
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="📚 Leituras" sub="Conteúdo baseado em pesquisa" onBack={()=>go("home")}/><Wrap>
+{temasSug.length>0&&<div style={{background:"#edf5ef",borderRadius:14,padding:12,marginBottom:16}}><div style={{fontSize:12,fontWeight:600,color:C.accent,marginBottom:8,fontFamily:SF}}>Sugerido com base nos seus acordos</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{[...new Set(temasSug)].map(t=>{const lt=LTEMAS.find(x=>x.id===t);return lt?<Tag key={t} color={lt.cor} label={lt.icon+" "+lt.label}/>:null;})}</div></div>}
+<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>{[{id:null,label:"Todos",icon:"📚"},...LTEMAS].map(t=><button key={t.id||"all"} onClick={()=>setTsel(t.id)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tsel===t.id?(t.cor||C.primary):C.border}`,background:tsel===t.id?(t.cor||C.primary)+"15":"transparent",color:tsel===t.id?(t.cor||C.primary):C.muted,fontSize:12,cursor:"pointer",fontFamily:SF,fontWeight:tsel===t.id?700:400}}>{t.icon} {t.label}</button>)}</div>
+{slistas.map(sug=><div key={sug.titulo} onClick={()=>abrir(sug)} style={{background:C.card,borderRadius:18,padding:"14px 16px",marginBottom:10,cursor:"pointer",boxShadow:"0 1px 8px rgba(0,0,0,0.05)",display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:C.text,lineHeight:1.4,marginBottom:4}}>{loading===sug.titulo?"Carregando...":sug.titulo}</div><div style={{fontSize:12,color:C.muted,fontFamily:SF}}>{LTEMAS.find(t=>t.id===sug.tema)?.label}</div></div><div style={{color:C.accent,fontSize:18,opacity:.5}}>›</div></div>)}
+</Wrap></div>;}
+
+/* ============ HISTÓRICO ============ */
+function Historico({casal,go,acordos}){const expressos=AREAS.filter(a=>acordos[a.id]?.expresso||acordos[a.id]?.acordo?.texto);return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="📋 Histórico de Acordos" onBack={()=>go("home")}/><Wrap>{expressos.length===0?<Card style={{textAlign:"center",padding:32}}><div style={{fontSize:32,marginBottom:8}}>📭</div><p style={{color:C.muted,fontFamily:SF}}>Nenhum acordo expresso ainda.</p></Card>:expressos.map(area=>{const a=acordos[area.id];const ac=a.acordo||{texto:a.expresso,compromissos:[],versao:1};return<Card key={area.id}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><span style={{fontSize:20}}>{area.icon}</span><div style={{fontWeight:700,fontSize:14}}>{area.label}</div>{ac.versao>1&&<Tag color={C.muted} label={`v${ac.versao}`}/>}</div><div style={{fontSize:14,color:C.text,lineHeight:1.7,fontStyle:"italic",marginBottom:ac.compromissos?.length?12:0}}>{"\u201C"}{ac.texto}{"\u201D"}</div>{ac.compromissos?.length>0&&<div><div style={{fontSize:11,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:SF}}>Compromissos</div>{ac.compromissos.map(c=><div key={c.id} style={{display:"flex",gap:8,fontSize:13,color:C.text,padding:"5px 0",borderBottom:`1px solid ${C.border}`}}><span style={{color:C.accent}}>•</span><span style={{flex:1}}>{c.desc}</span><span style={{color:C.muted,fontFamily:SF,fontSize:11}}>{c.dono==="ambos"?"Ambos":casal[c.dono]}</span></div>)}</div>}{ac.revisaoEm&&<p style={{fontSize:12,color:C.muted,margin:"10px 0 0",fontFamily:SF}}>Revisão: {fmtBR(ac.revisaoEm)}</p>}</Card>;})}
+</Wrap></div>;}
+
+/* ============ TERAPEUTA ============ */
+function TPin({onOk,onBack,pin}){const[p,setP]=useState("");const[err,setErr]=useState("");
+if(!pin)return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}><div style={{width:"100%",maxWidth:320,textAlign:"center"}}><div style={{fontSize:40,marginBottom:16}}>🩺</div><p style={{fontFamily:GF,color:"#fff",fontSize:20,marginBottom:24}}>Acesso do Terapeuta</p><div style={{background:"rgba(255,255,255,0.08)",borderRadius:16,padding:"20px",marginBottom:24}}><p style={{fontFamily:SF,color:"rgba(255,255,255,0.7)",fontSize:14,marginBottom:8}}>PIN não configurado.</p><p style={{fontFamily:SF,color:"rgba(255,255,255,0.45)",fontSize:13,lineHeight:1.6,margin:0}}>O parceiro responsável precisa definir um PIN de acesso para o terapeuta em Configurações → Acesso do Terapeuta.</p></div><button onClick={onBack} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",fontSize:12,cursor:"pointer",fontFamily:SF}}>← Voltar</button></div></div>;
+return<div style={{minHeight:"100vh",background:"linear-gradient(160deg,#1A2820,#2D4A3E)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}><div style={{width:"100%",maxWidth:320,textAlign:"center"}}><div style={{fontSize:40,marginBottom:16}}>🩺</div><p style={{fontFamily:GF,color:"#fff",fontSize:20,marginBottom:24}}>Acesso do Terapeuta</p><input type="password" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(p===pin?onOk():setErr("PIN incorreto."))} placeholder="PIN" style={{width:"100%",padding:"12px 14px",borderRadius:12,border:"1.5px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.08)",color:"#fff",fontSize:18,textAlign:"center",outline:"none",letterSpacing:6,marginBottom:8}}/>{err&&<p style={{color:"#f87171",fontSize:12,marginBottom:8}}>{err}</p>}<button onClick={()=>p===pin?onOk():setErr("PIN incorreto.")} style={{background:"rgba(92,138,106,0.4)",border:"1.5px solid rgba(142,196,161,0.5)",borderRadius:50,padding:"12px 0",width:"100%",color:"#fff",fontSize:14,cursor:"pointer",fontFamily:GF,marginBottom:8}}>Entrar</button><button onClick={onBack} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",fontSize:12,cursor:"pointer",fontFamily:SF}}>← Voltar</button></div></div>;}
+function TPanel({casal,acordos,checkins,projetos,marcos,go}){const expresso=Object.entries(acordos).filter(([,a])=>a.expresso||a.acordo?.texto);const conflitantes=Object.entries(acordos).filter(([,a])=>a.p1?.status==="conflitante"||a.p2?.status==="conflitante");const d0=new Date();const today=[d0.getFullYear(),String(d0.getMonth()+1).padStart(2,"0"),String(d0.getDate()).padStart(2,"0")].join("-");const todayC=checkins[today]||{};const marcosOrd=(marcos||[]).slice().sort((a,b)=>a.data_evento>b.data_evento?1:-1);return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}><Hdr title="🩺 Painel do Terapeuta" sub={casal.p1+" & "+casal.p2} onBack={()=>go("home")}/><Wrap>
+<Card style={{background:"#edf5ef",border:`1px solid ${C.accent}44`}}><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,textAlign:"center"}}><div><div style={{fontSize:22,fontWeight:700,color:C.primary}}>{expresso.length}</div><div style={{fontSize:10,color:C.muted,fontFamily:SF}}>acordos</div></div><div><div style={{fontSize:22,fontWeight:700,color:C.red}}>{conflitantes.length}</div><div style={{fontSize:10,color:C.muted,fontFamily:SF}}>conflitos</div></div><div><div style={{fontSize:22,fontWeight:700,color:"#5a7a9a"}}>{projetos.length}</div><div style={{fontSize:10,color:C.muted,fontFamily:SF}}>projetos</div></div><div><div style={{fontSize:22,fontWeight:700,color:"#b45309"}}>{marcosOrd.length}</div><div style={{fontSize:10,color:C.muted,fontFamily:SF}}>marcos</div></div></div></Card>
+{todayC.p1&&todayC.p2&&<Card><p style={{fontWeight:700,color:C.primary,marginTop:0}}>Check-in de hoje</p>{DIMS.map(d=>{const v1=todayC.p1[d.id]||3,v2=todayC.p2[d.id]||3,diff=Math.abs(v1-v2);return<div key={d.id} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{fontWeight:700}}>{d.label}</span>{diff>=2&&<span style={{color:C.red,fontSize:11,fontFamily:SF}}>⚠ Diferença</span>}</div><div style={{display:"flex",gap:4,alignItems:"center"}}><span style={{fontSize:11,color:C.muted,width:64,textAlign:"right",fontFamily:SF}}>{casal.p1}: {v1}</span><div style={{flex:1,display:"flex",gap:2}}>{[1,2,3,4,5].map(i=><div key={i} style={{flex:1,height:8,borderRadius:4,background:i<=v1&&i<=v2?C.accent:i<=v1?"#5C8A6A":i<=v2?"#5a7a9a":C.border}}/>)}</div><span style={{fontSize:11,color:C.muted,width:64,fontFamily:SF}}>{casal.p2}: {v2}</span></div></div>;})}
+</Card>}
+{conflitantes.length>0&&<Card><p style={{fontWeight:700,color:C.red,marginTop:0}}>Áreas conflitantes</p>{conflitantes.map(([id,a])=>{const area=AREAS.find(x=>x.id===id);return area?<div key={id} style={{borderLeft:`3px solid ${C.red}`,paddingLeft:12,marginBottom:12}}><div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{area.icon} {area.label}</div>{a.p1?.contexto&&<p style={{fontSize:12,color:C.muted,margin:"2px 0",fontFamily:SF}}>{casal.p1}: {a.p1.contexto}</p>}{a.p2?.contexto&&<p style={{fontSize:12,color:C.muted,margin:"2px 0",fontFamily:SF}}>{casal.p2}: {a.p2.contexto}</p>}</div>:null;})}
+</Card>}
+{marcosOrd.length>0&&<Card><p style={{fontWeight:700,color:C.primary,marginTop:0}}>📜 Nossa História</p>{marcosOrd.map(m=>{const cat=MCATS.find(c=>c.id===m.categoria)||MCATS[MCATS.length-1];return<div key={m.id} style={{display:"flex",gap:10,paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}><div style={{fontSize:20,flexShrink:0,width:28,textAlign:"center"}}>{cat.icon}</div><div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:C.text}}>{m.titulo}</div><div style={{fontSize:11,color:C.muted,fontFamily:SF,marginTop:2}}>{m.data_evento} · {cat.label}{m.reminder&&" · 🔔"}</div>{m.nota&&<div style={{fontSize:12,color:C.muted,fontFamily:SF,fontStyle:"italic",marginTop:3,lineHeight:1.5}}>{m.nota}</div>}</div></div>;})}
+</Card>}
+</Wrap></div>;}
+
+/* ============ NOSSA HISTÓRIA ============ */
+function NossaHistoria({casal,marcos,go,isDemo,role,onSaveMarco,prefill,onClearPrefill,onGoToCNV}){
+const[view,setView]=useState(()=>prefill?"form":"list");
+const[editId,setEditId]=useState(null);
+const[ordem,setOrdem]=useState("desc");
+const[form,setForm]=useState({titulo:prefill?.titulo||"",data_evento:prefill?.data_evento||new Date().toISOString().slice(0,10),precisao_data:"dia",categoria:prefill?.categoria||"outro",nota:"",reminder:false,reminder_tom:"carinhoso"});
+const[salvando,setSalvando]=useState(false);
+const[formSalvo,setFormSalvo]=useState(false);
+
+const ordenados=marcos.slice().sort((a,b)=>ordem==="desc"?b.data_evento>a.data_evento?1:-1:a.data_evento>b.data_evento?1:-1);
+
+const abrirNovo=()=>{if(onClearPrefill)onClearPrefill();setEditId(null);setForm({titulo:"",data_evento:new Date().toISOString().slice(0,10),precisao_data:"dia",categoria:"outro",nota:"",reminder:false,reminder_tom:"carinhoso"});setFormSalvo(false);setView("form");};
+const abrirEdit=(m)=>{setEditId(m.id);setForm({titulo:m.titulo,data_evento:m.data_evento,precisao_data:m.precisao_data||"dia",categoria:m.categoria||"outro",nota:m.nota||"",reminder:m.reminder||false,reminder_tom:m.reminder_tom||"carinhoso"});setFormSalvo(false);setView("form");};
+
+const salvar=async()=>{
+  if(!form.titulo.trim()||!form.data_evento)return;
+  setSalvando(true);
+  await onSaveMarco({...(editId?{id:editId}:{}),titulo:form.titulo.trim(),data_evento:form.data_evento,precisao_data:form.precisao_data,categoria:form.categoria,nota:form.nota.trim()||null,reminder:form.reminder,reminder_tom:form.reminder?form.reminder_tom:null});
+  setSalvando(false);setFormSalvo(true);
+  setTimeout(()=>{setView("list");setFormSalvo(false);if(onClearPrefill)onClearPrefill();},1000);
+};
+
+const fmtMarcoData=(m)=>{
+  const d=new Date(m.data_evento+"T12:00:00");
+  if(m.precisao_data==="ano")return d.getFullYear().toString();
+  if(m.precisao_data==="mes")return d.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+  return d.toLocaleDateString("pt-BR",{day:"numeric",month:"short",year:"numeric"});
+};
+
+if(view==="form")return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}>
+<Hdr title={editId?"Editar Marco":"Novo Marco"} onBack={()=>{setView("list");if(onClearPrefill)onClearPrefill();}}/>
+<Wrap>
+<Card>
+<p style={{fontWeight:700,marginTop:0,color:C.primary}}>Título</p>
+<In value={form.titulo} onChange={v=>setForm(f=>({...f,titulo:v}))} ph="O que aconteceu?"/>
+<p style={{fontWeight:700,marginBottom:8,color:C.primary}}>Data</p>
+<div style={{display:"flex",gap:8,marginBottom:12}}>
+  {["dia","mes","ano"].map(p=><button key={p} onClick={()=>setForm(f=>({...f,precisao_data:p}))} style={{flex:1,padding:"7px 0",borderRadius:10,border:`1.5px solid ${form.precisao_data===p?C.primary:C.border}`,background:form.precisao_data===p?C.primary+"12":"transparent",color:form.precisao_data===p?C.primary:C.muted,fontSize:12,cursor:"pointer",fontFamily:SF,fontWeight:form.precisao_data===p?700:400}}>{p==="dia"?"Dia exato":p==="mes"?"Mês/Ano":"Apenas ano"}</button>)}
+</div>
+<input type="date" value={form.data_evento} onChange={e=>setForm(f=>({...f,data_evento:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:`1.5px solid ${C.border}`,fontSize:14,color:C.text,background:"#FAFBF9",outline:"none",fontFamily:SF,marginBottom:12}}/>
+<p style={{fontWeight:700,marginBottom:8,color:C.primary}}>Categoria</p>
+<div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:12}}>
+  {MCATS.map(cat=><button key={cat.id} onClick={()=>setForm(f=>({...f,categoria:cat.id}))} style={{padding:"7px 12px",borderRadius:20,border:`1.5px solid ${form.categoria===cat.id?C.primary:C.border}`,background:form.categoria===cat.id?C.primary+"12":"transparent",color:form.categoria===cat.id?C.primary:C.muted,fontSize:12,cursor:"pointer",fontFamily:SF,fontWeight:form.categoria===cat.id?700:400}}>{cat.icon} {cat.label}</button>)}
+</div>
+<p style={{fontWeight:700,marginBottom:8,color:C.primary}}>Nota <span style={{fontWeight:400,color:C.muted,fontSize:12}}>(opcional)</span></p>
+<TA value={form.nota} onChange={v=>setForm(f=>({...f,nota:v}))} rows={2} ph="Um detalhe que queira lembrar..."/>
+</Card>
+<Card>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+  <p style={{fontWeight:700,margin:0,color:C.primary}}>🔔 Lembrete anual</p>
+  <div onClick={()=>setForm(f=>({...f,reminder:!f.reminder}))} style={{width:44,height:24,borderRadius:12,background:form.reminder?C.accent:C.border,cursor:"pointer",position:"relative",transition:"background .2s"}}><div style={{position:"absolute",top:3,left:form.reminder?20:3,width:18,height:18,borderRadius:9,background:"#fff",transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/></div>
+</div>
+<p style={{fontSize:12,color:C.muted,fontFamily:SF,marginBottom:form.reminder?12:0}}>Aparecer na Home todo ano nesta data</p>
+{form.reminder&&<><p style={{fontWeight:600,fontSize:12,color:C.primary,marginBottom:6,fontFamily:SF}}>Tom da mensagem</p><div style={{display:"flex",gap:8}}>{["celebrativo","reflexivo","carinhoso"].map(t=><button key={t} onClick={()=>setForm(f=>({...f,reminder_tom:t}))} style={{flex:1,padding:"7px 0",borderRadius:10,border:`1.5px solid ${form.reminder_tom===t?C.accent:C.border}`,background:form.reminder_tom===t?C.accent+"15":"transparent",color:form.reminder_tom===t?C.accent:C.muted,fontSize:12,cursor:"pointer",fontFamily:SF,fontWeight:form.reminder_tom===t?700:400,textTransform:"capitalize"}}>{t}</button>)}</div></>}
+</Card>
+{formSalvo?<div style={{textAlign:"center",padding:"16px 0",color:C.accent,fontWeight:700,fontFamily:GF}}>✓ Marco salvo!</div>:<Btn onClick={salvar} disabled={!form.titulo.trim()||!form.data_evento||salvando} style={{width:"100%"}}>{salvando?"Salvando...":"Salvar marco →"}</Btn>}
+</Wrap></div>;
+
+return<div style={{minHeight:"100vh",background:C.bg,fontFamily:GF}}>
+<Hdr title="📜 Nossa História" sub={casal.p1+" & "+casal.p2} onBack={()=>go("home")}/>
+<div style={{background:`linear-gradient(135deg,${C.primary},${C.accent})`,padding:"20px 20px 18px"}}>
+<div style={{maxWidth:560,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+  <div><div style={{color:"rgba(255,255,255,0.6)",fontSize:11,fontFamily:SF,marginBottom:4}}>{marcos.length} marco{marcos.length!==1?"s":""} registrado{marcos.length!==1?"s":""}</div><div style={{color:"#fff",fontSize:14,fontFamily:SF}}>A história que vocês estão escrevendo juntos.</div></div>
+  <button onClick={abrirNovo} style={{background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.4)",borderRadius:12,padding:"8px 14px",color:"#fff",fontSize:13,cursor:"pointer",fontFamily:GF}}>+ Novo</button>
+</div>
+</div>
+<Wrap>
+{marcos.length===0?<Card style={{textAlign:"center",padding:40}}><div style={{fontSize:40,marginBottom:12}}>📜</div><p style={{fontWeight:700,marginBottom:8,fontSize:16}}>Toda história começa em algum lugar.</p><p style={{fontSize:14,color:C.muted,fontFamily:SF,marginBottom:20,lineHeight:1.7}}>Quando foi o primeiro capítulo de vocês?</p><Btn onClick={abrirNovo}>Registrar primeiro marco →</Btn></Card>:
+<><div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button onClick={()=>setOrdem(o=>o==="desc"?"asc":"desc")} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:20,padding:"6px 12px",fontSize:11,color:C.muted,cursor:"pointer",fontFamily:SF}}>{ordem==="desc"?"↓ Mais recente":"↑ Mais antigo"}</button></div>
+{ordenados.map((m,i)=>{const cat=MCATS.find(c=>c.id===m.categoria)||MCATS[MCATS.length-1];const isLast=i===ordenados.length-1;return<div key={m.id} style={{display:"flex",gap:12,marginBottom:isLast?0:8}}>
+  <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:36,flexShrink:0}}>
+    <div style={{width:36,height:36,borderRadius:18,background:C.tag,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{cat.icon}</div>
+    {!isLast&&<div style={{width:2,flex:1,background:C.border,marginTop:4}}/>}
+  </div>
+  <div onClick={()=>abrirEdit(m)} style={{flex:1,background:C.card,borderRadius:16,padding:"12px 14px",marginBottom:8,cursor:"pointer",boxShadow:"0 1px 6px rgba(0,0,0,0.04)"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+      <div style={{fontWeight:700,fontSize:14,color:C.text,flex:1,lineHeight:1.4}}>{m.titulo}</div>
+      {m.reminder&&<span style={{fontSize:12,marginLeft:6,flexShrink:0}}>🔔</span>}
+    </div>
+    <div style={{fontSize:11,color:C.muted,fontFamily:SF,marginBottom:m.nota?6:0}}>{fmtMarcoData(m)} · {cat.label}</div>
+    {m.nota&&<div style={{fontSize:12,color:C.muted,fontFamily:SF,fontStyle:"italic",lineHeight:1.5}}>{m.nota}</div>}
+  </div>
+</div>;})}
+<button onClick={abrirNovo} style={{background:"transparent",border:`1.5px dashed ${C.border}`,borderRadius:14,padding:"11px 0",width:"100%",color:C.muted,fontSize:14,cursor:"pointer",fontFamily:GF,marginTop:8}}>+ Novo marco</button></>}
+</Wrap></div>;
+}
+
+/* ============ APP ============ */
+function App(){
+  const[sess,setSessState]=useState(null);
+  const[loadingData,setLoadingData]=useState(false);
+  const[casal,setCasal]=useState(null);
+  const[active,setActive]=useState("p1");
+  const[screen,setScreen]=useState("home");
+  const[acordos,setAcordos]=useState({});
+  const[projetos,setProjetos]=useState([]);
+  const[checkins,setCheckins]=useState({});
+  const[customAreas,setCustomAreas]=useState([]);
+  const[sessao,setSessao]=useState(null);
+  const[tOk,setTOk]=useState(false);
+  const[onboarded,setOnboarded]=useState(false);
+  const[showSplash,setShowSplash]=useState(true);
+  const[syncTime,setSyncTime]=useState("");
+  const[loadError,setLoadError]=useState(false);
+  const[marcos,setMarcos]=useState([]);
+  const[cnvPrefill,setCnvPrefill]=useState(null);
+  const[historiaPrefill,setHistoriaPrefill]=useState(null);
+
+  const loadData=async(casal_id)=>{
+    setLoadingData(true);
+    setLoadError(false);
+    try{
+      const[a,c,p,m]=await Promise.all([db.loadAcordos(casal_id),db.loadCheckins(casal_id),db.loadProjetos(casal_id),db.loadMarcos(casal_id)]);
+      setAcordos(a);setCheckins(c);setProjetos(p);setMarcos(m||[]);
+      setSyncTime(new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}));
+    }catch(e){console.error("loadData:",e);setLoadError(true);}
+    setLoadingData(false);
+  };
+
+  useEffect(()=>{
+    const s=getSess();
+    if(s&&!s.isDemo){
+      setSessState(s);
+      setCasal({p1:s.nome_p1,p2:s.nome_p2||"Parceiro(a)"});
+      setActive(s.role==="terapeuta"?"p1":s.role);
+      setShowSplash(false);
+      if(compDone(s.casal_id))setOnboarded(true);
+      if(s.role==="terapeuta"&&compDone(s.casal_id))setScreen("terapeuta");
+      loadData(s.casal_id);
+    }
+  },[]);
+
+  /* Polling automático a cada 90s (apenas modo real) */
+  useEffect(()=>{
+    if(!sess||sess.isDemo||!sess.casal_id)return;
+    const iv=setInterval(()=>loadData(sess.casal_id),90000);
+    return()=>clearInterval(iv);
+  },[sess?.casal_id,sess?.isDemo]);
+
+  const handleSession=(s)=>{
+    setSessState(s);
+    if(s.isDemo){
+      DEMO_MODE=!s.hasKey;
+      setCasal({p1:"Você",p2:"Parceiro(a)"});
+      setActive("p1");
+      setOnboarded(false); /* sempre mostrar onboarding no demo */
+      setScreen("home");
+      setShowSplash(false);
+    }else{
+      setCasal({p1:s.nome_p1,p2:s.nome_p2||"Parceiro(a)"});
+      setActive(s.role==="terapeuta"?"p1":s.role);
+      setShowSplash(false);
+      if(compDone(s.casal_id))setOnboarded(true);
+      if(s.role==="terapeuta"&&compDone(s.casal_id))setScreen("terapeuta");
+      loadData(s.casal_id);
+    }
+  };
+
+  const isDemo=!sess||sess.isDemo;
+  const role=sess?.role||"p1";
+
+  const onSaveAcordo=(areaId,data)=>{if(!isDemo&&sess?.casal_id)db.saveAcordo(sess.casal_id,areaId,data).catch(console.error);};
+  const onSaveCheckin=(r,date,data)=>{if(!isDemo&&sess?.casal_id)db.saveCheckin(sess.casal_id,r,date,data).catch(console.error);};
+  const onSaveProjeto=async(p)=>{if(!isDemo&&sess?.casal_id){const newId=await db.saveProjeto(sess.casal_id,p).catch(console.error);if(newId&&p.id!==newId)setProjetos(pr=>pr.map(x=>x.id===p.id?{...x,id:newId}:x));}};
+  const onDelProjeto=(id)=>{if(!isDemo&&sess?.casal_id)db.delProjeto(id).catch(console.error);};
+  const onSaveMarco=async(marco)=>{
+    if(!isDemo&&sess?.casal_id){
+      const saved=await db.saveMarco(sess.casal_id,marco,role).catch(console.error);
+      if(saved&&!marco.id){setMarcos(m=>[...m,saved].sort((a,b)=>a.data_evento>b.data_evento?1:-1));}
+      else{setMarcos(m=>m.map(x=>x.id===marco.id?{...x,...marco}:x));}
+    } else {
+      if(!marco.id){const tmp={...marco,id:"tmp_"+Date.now()};setMarcos(m=>[...m,tmp].sort((a,b)=>a.data_evento>b.data_evento?1:-1));}
+      else{setMarcos(m=>m.map(x=>x.id===marco.id?{...x,...marco}:x));}
+    }
+  };
+  const onSync=()=>{if(!isDemo&&sess?.casal_id)loadData(sess.casal_id);};
+
+  if(showSplash)return<SplashScreen onSession={handleSession}/>;
+  if(loadingData)return<LoadingScreen/>;
+  if(!casal)return<LoadingScreen/>;
+  if(!onboarded)return<Onboarding casal={casal} myRole={role} isDemo={isDemo} casalId={sess?.casal_id||"demo"} onDone={()=>{setOnboarded(true);if(isDemo)setScreen("checkin");}}/>;
+
+  const terapeutaPin=sess&&!sess.isDemo?getTPin(sess.casal_id):"";
+  const shared={casal,active,setActive,go:setScreen,acordos,setAcordos,projetos,setProjetos,checkins,setCheckins,sessao,setSessao,isDemo,role};
+  const OfflineBanner=loadError?<div style={{background:"#fff3cd",borderBottom:"1px solid #ffc107",padding:"10px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:13,color:"#856404",fontFamily:SF}}>⚠ Sem conexão. Seus dados estão salvos.</span><button onClick={()=>sess?.casal_id&&loadData(sess.casal_id)} style={{background:"transparent",border:"1px solid #856404",borderRadius:8,padding:"4px 10px",fontSize:11,color:"#856404",cursor:"pointer",fontFamily:SF}}>Tentar novamente</button></div>:null;
+
+  if(screen==="terapeuta"){if(!tOk)return<TPin onOk={()=>setTOk(true)} onBack={()=>setScreen("home")} pin={terapeutaPin}/>;return<TPanel casal={casal} acordos={acordos} checkins={checkins} projetos={projetos} marcos={marcos} go={s=>{if(s==="home")setTOk(false);setScreen(s);}}/>;};
+  if(screen==="home")return<><div>{OfflineBanner}</div><Home {...shared} onSync={()=>sess?.casal_id&&loadData(sess.casal_id)} syncTime={syncTime} terapeutaPin={terapeutaPin} sessId={sess?.casal_id} marcos={marcos} onReminderCNV={(prefill)=>{setCnvPrefill(prefill);setScreen("cnv");}} onCreateMarco={(pf)=>{setHistoriaPrefill(pf);setScreen("historia");}}/></>;
+  if(screen==="acordos")return<Acordos {...shared} onSaveAcordo={onSaveAcordo} customAreas={customAreas} setCustomAreas={setCustomAreas}/>;
+  if(screen==="cnv")return<Comunicador {...shared} prefill={cnvPrefill} onClearPrefill={()=>setCnvPrefill(null)}/>;
+  if(screen==="projetos")return<Projetos {...shared} onSaveProjeto={onSaveProjeto} onDelProjeto={onDelProjeto} onConvertMarco={(pf)=>{setHistoriaPrefill(pf);setScreen("historia");}}/>;
+  if(screen==="checkin")return<Checkin {...shared} onSaveCheckin={onSaveCheckin}/>;
+  if(screen==="enredo")return<MeuEnredo go={setScreen}/>;
+  if(screen==="historia")return<NossaHistoria casal={casal} marcos={marcos} go={setScreen} isDemo={isDemo} role={role} onSaveMarco={onSaveMarco} prefill={historiaPrefill} onClearPrefill={()=>setHistoriaPrefill(null)} onGoToCNV={(pf)=>{setCnvPrefill(pf);setScreen("cnv");}}/>;
+  if(screen==="leituras")return<Leituras casal={casal} go={setScreen} acordos={acordos}/>;
+  if(screen==="historico")return<Historico casal={casal} go={setScreen} acordos={acordos}/>;
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
