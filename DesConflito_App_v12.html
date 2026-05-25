@@ -6,9 +6,9 @@
 <title>Acordo Entre Nós</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="/vendor/react.js"></script>
+<script src="/vendor/react-dom.js"></script>
+<script src="/vendor/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:#F4F6F3;font-family:'DM Sans',system-ui,sans-serif;color:#1A2820}
@@ -452,7 +452,7 @@ function Home({casal,active,setActive,go,acordos,checkins,sessao,isDemo,role,onS
 const atv=[];(marcos||[]).slice().sort((a,b)=>b.criado_em>a.criado_em?1:-1).slice(0,2).forEach(m=>atv.push({dot:"marco",texto:`Marco "${m.titulo}" registrado`,data:m.criado_em||m.data_evento}));Object.entries(checkins||{}).sort(([a],[b])=>b>a?1:-1).slice(0,2).forEach(([dt,d])=>{const q=d.p1&&d.p2?"Ambos":d.p1?casal.p1:casal.p2;atv.push({dot:"checkin",texto:`${q} fez check-in`,data:dt});});Object.entries(acordos).filter(([,a])=>a.savedAt).sort(([,a],[,b])=>b.savedAt>a.savedAt?1:-1).slice(0,1).forEach(([id,a])=>{const area=AREAS.find(x=>x.id===id);if(area)atv.push({dot:"acordo",texto:`Acordo "${area.label}" atualizado`,data:a.savedAt});});atv.sort((a,b)=>b.data>a.data?1:-1);const atvShow=atv.slice(0,3);
 const[showTConf,setShowTConf]=useState(false);const[newTPin,setNewTPin]=useState("");const[tPinSalvo,setTPinSalvo]=useState(false);
 const[loadingReminder,setLoadingReminder]=useState({});const[reminderMsg,setReminderMsg]=useState({});
-const d0=new Date();const todayMD=(d0.getMonth()+1).toString().padStart(2,"0")+"-"+d0.getDate().toString().padStart(2,"0");
+const todayMD=(d0.getMonth()+1).toString().padStart(2,"0")+"-"+d0.getDate().toString().padStart(2,"0");
 const isLeapYear=y=>(y%4===0&&y%100!==0)||y%400===0;
 const reminders=(marcos||[]).filter(m=>{if(!m.reminder||!m.data_evento)return false;const md=m.data_evento.slice(5);if(md===todayMD)return true;if(md==="02-29"&&todayMD==="02-28"&&!isLeapYear(d0.getFullYear()))return true;return false;});
 const gerarMsgReminder=async(m)=>{
