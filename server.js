@@ -5,6 +5,10 @@ const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(__dirname));
 
+app.get("/", (req, res) => {
+  res.redirect("/DesConflito_App_v12.html");
+});
+
 // ─── CONFIGURE SUA API KEY AQUI ───────────────────────────────────
 const API_KEY = process.env.ANTHROPIC_API_KEY || "SUA_API_KEY_AQUI";
 // ──────────────────────────────────────────────────────────────────
