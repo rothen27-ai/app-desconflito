@@ -1,0 +1,16 @@
+{
+  "name": "desconflito-bot",
+  "version": "0.1.0",
+  "description": "Assistente conversacional de relacionamento no WhatsApp, guiado pela metodologia ACL",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@supabase/supabase-js": "^2.45.4",
+    "express": "^4.21.0"
+  }
+}
